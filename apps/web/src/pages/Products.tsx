@@ -1,3 +1,4 @@
+import { ExportButtons } from '../components/ExportButtons';
 import { useState } from 'react';
 import { Pencil, Plus } from 'lucide-react';
 import { like, useLookup, useSave, useTable, type Row } from '../lib/data';
@@ -276,8 +277,8 @@ export function ProductStock() {
 
   return (
     <div>
-      <PageHeader title="Product Stock Report" subtitle={`Stock value at cost: ${money(totalValue)}`} actions={<button className="btn-secondary" onClick={() => window.print()}>Print</button>} />
-      <div className="card overflow-hidden">
+      <PageHeader title="Product Stock Report" subtitle={`Stock value at cost: ${money(totalValue)}`} actions={<ExportButtons title="Product Stock Report" subtitle={`Stock value at cost: ${money(totalValue)}`} />} />
+      <div className="card overflow-hidden" data-report>
         <div className="no-print flex flex-wrap items-center gap-2 border-b border-ink-100 p-3">
           <div className="w-72"><SearchInput value={search} onChange={setSearch} /></div>
           <select className="input w-52" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>

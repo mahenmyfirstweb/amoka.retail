@@ -1,3 +1,4 @@
+import { ExportButtons } from '../components/ExportButtons';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
@@ -41,8 +42,8 @@ export function CustomerOutstandingReport() {
   const sum = (k: string) => data.reduce((s, r) => s + Number(r[k] ?? 0), 0);
   return (
     <div>
-      <PageHeader title="Customer Outstanding Report" subtitle="Invoices − returns − receipts, per customer" actions={<button className="btn-secondary" onClick={() => window.print()}><Printer size={15} /> Print</button>} />
-      <div className="card overflow-hidden">
+      <PageHeader title="Customer Outstanding Report" subtitle="Invoices − returns − receipts, per customer" actions={<ExportButtons title="Customer Outstanding Report" subtitle={`As of ${asOf}`} landscape />} />
+      <div className="card overflow-hidden" data-report>
         <div className="no-print flex flex-wrap items-end gap-3 border-b border-ink-100 p-3">
           <Field label="As of"><input type="date" className="input" value={asOf} onChange={(e) => setAsOf(e.target.value)} /></Field>
           <Field label="Salesman">
@@ -112,8 +113,8 @@ export function ReceiptReport() {
   const byPaymode = Object.entries(data.reduce<Record<string, number>>((m, r) => ({ ...m, [r.paymode?.name]: (m[r.paymode?.name] ?? 0) + Number(r.amount) }), {}));
   return (
     <div>
-      <PageHeader title="Receipt Report" subtitle="Payments received from customers" actions={<button className="btn-secondary" onClick={() => window.print()}><Printer size={15} /> Print</button>} />
-      <div className="card overflow-hidden">
+      <PageHeader title="Receipt Report" subtitle="Payments received from customers" actions={<ExportButtons title="Receipt Report" subtitle={`${from} to ${to}`} landscape />} />
+      <div className="card overflow-hidden" data-report>
         <div className="no-print flex flex-wrap items-end gap-3 border-b border-ink-100 p-3">
           <Field label="From"><input type="date" className="input" value={from} onChange={(e) => setFrom(e.target.value)} /></Field>
           <Field label="To"><input type="date" className="input" value={to} onChange={(e) => setTo(e.target.value)} /></Field>

@@ -1,3 +1,4 @@
+import { ExportButtons } from '../components/ExportButtons';
 import { useState } from 'react';
 import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
@@ -30,7 +31,7 @@ export function SalesReport({ profit }: { profit?: boolean }) {
 
   return (
     <div>
-      <PageHeader title={profit ? 'Profit Analysis' : 'Sales Report'} subtitle="Net of returns, excluding tax" actions={<button className="btn-secondary" onClick={() => window.print()}><Printer size={15} /> Print</button>} />
+      <PageHeader title={profit ? 'Profit Analysis' : 'Sales Report'} subtitle="Net of returns, excluding tax" actions={<ExportButtons title={`${profit ? "Profit Analysis" : "Sales Report"} - ${group}`} subtitle={`${from} to ${to}`} />} />
       <div className="no-print">
         <Tabs
           tabs={[...(profit ? [] : [{ key: 'invoices', label: 'Invoice list' }]), { key: 'day', label: 'By day' }, { key: 'product', label: 'By product' }, { key: 'category', label: 'By category' }, { key: 'customer', label: 'By customer' }, { key: 'salesman', label: 'By salesman' }]}
@@ -38,7 +39,7 @@ export function SalesReport({ profit }: { profit?: boolean }) {
           onChange={setGroup}
         />
       </div>
-      <div className="card overflow-hidden">
+      <div className="card overflow-hidden" data-report>
         <div className="no-print flex flex-wrap items-end gap-3 border-b border-ink-100 p-3">
           <Field label="From"><input type="date" className="input" value={from} onChange={(e) => setFrom(e.target.value)} /></Field>
           <Field label="To"><input type="date" className="input" value={to} onChange={(e) => setTo(e.target.value)} /></Field>
@@ -103,8 +104,8 @@ export function AgingReport({ kind }: { kind: 'CUSTOMER' | 'SUPPLIER' }) {
   const sum = (k: string) => data.reduce((s, r) => s + Number(r[k] ?? 0), 0);
   return (
     <div>
-      <PageHeader title={kind === 'CUSTOMER' ? 'Account Receivable' : 'Account Payable'} subtitle="Outstanding by age (days past due date)" actions={<button className="btn-secondary" onClick={() => window.print()}><Printer size={15} /> Print</button>} />
-      <div className="card overflow-hidden">
+      <PageHeader title={kind === 'CUSTOMER' ? 'Account Receivable' : 'Account Payable'} subtitle="Outstanding by age (days past due date)" actions={<ExportButtons title={kind === "CUSTOMER" ? "Account Receivable Aging" : "Account Payable Aging"} subtitle={`As of ${new Date().toLocaleDateString()}`} />} />
+      <div className="card overflow-hidden" data-report>
         {isLoading ? <Loading /> : error ? <div className="p-4"><ErrorBox error={error} /></div> : !data.length ? <Empty>Nothing outstanding 🎉</Empty> : (
           <table className="table">
             <thead><tr><th>{kind === 'CUSTOMER' ? 'Customer' : 'Supplier'}</th>{cols.map(([k, l]) => <th key={k} className="num">{l}</th>)}<th className="no-print" /></tr></thead>
@@ -148,14 +149,14 @@ export function CustomerStatement() {
   const closing = data.length ? Number(data[data.length - 1].balance) : 0;
   return (
     <div className="mx-auto max-w-4xl">
-      <PageHeader title="Customer Statement" actions={customer && <button className="btn-primary" onClick={() => window.print()}><Printer size={15} /> Print</button>} />
+      <PageHeader title="Customer Statement" actions={customer && <ExportButtons title={`Statement - ${cust?.name ?? ""}`} subtitle={`${from} to ${to}`} landscape={false} />} />
       <div className="card no-print mb-4 grid gap-3 p-4 md:grid-cols-4">
         <Field label="Customer" className="md:col-span-2"><PartyPicker table="customers" value={cust ?? customer} onChange={setCustomer} /></Field>
         <Field label="From"><input type="date" className="input" value={from} onChange={(e) => setFrom(e.target.value)} /></Field>
         <Field label="To"><input type="date" className="input" value={to} onChange={(e) => setTo(e.target.value)} /></Field>
       </div>
       {customer && (
-        <div className="card print-area p-8">
+        <div className="card print-area p-8" data-report>
           <CompanyHeader settings={settings} title="STATEMENT" />
           <div className="mt-5 flex justify-between text-sm">
             <div><div className="font-semibold text-ink-900">{cust?.name}</div><div className="whitespace-pre-line text-ink-500">{cust?.address}</div></div>

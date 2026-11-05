@@ -50,7 +50,7 @@ interface Store {
   paymodes: Row[];
   lastSync: string | null;
   syncing: boolean;
-  refreshData: () => Promise<void>;
+  refreshData: (force?: boolean) => Promise<void>;
 
   customer: Row | null;
   setCustomer: (c: Row | null) => Promise<void>;
@@ -126,13 +126,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data }) => {
       setSession(data.session);
+      const cached = LS.get<Row | null>('profile', null);
+      if (data.session && cached?.id === data.session.user.id) {
+        // Returning user: open instantly from the saved profile, refresh it in the background.
+        setReady(true);
+        if (navigator.onLine) loadProfile(data.session).catch(() => {});
+        return;
+      }
       if (data.session && navigator.onLine) await loadProfile(data.session).catch(() => {});
       setReady(true);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
-      setSession(s);
-      if (event === 'SIGNED_IN') setTimeout(() => loadProfile(s), 0);
-    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => setSession(s));
     const on = () => setOnline(true);
     const off = () => setOnline(false);
     window.addEventListener('online', on);
@@ -145,8 +149,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // ---------- master data ----------
-  const refreshData = useCallback(async () => {
+  /** Downloads catalog, shops etc. Skipped if the copy on the device is recent, unless `force`. */
+  const refreshData = useCallback(async (force = true) => {
     if (!navigator.onLine) return;
+    const last = LS.get<string | null>('lastSync', null);
+    const fresh = last && Date.now() - new Date(last).getTime() < 15 * 60 * 1000 && LS.get<Row[]>('products', []).length > 0;
+    if (!force && fresh) return;
     setSyncing(true);
     try {
       const [s, prod, cats, cust, pm] = await Promise.all([
@@ -181,7 +189,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (session && online) refreshData().catch(() => {});
+    // Background refresh after login / reconnect; the app works from the saved copy meanwhile.
+    if (session && online) refreshData(false).catch(() => {});
   }, [session, online, refreshData]);
 
   // ---------- customer & pricing ----------
@@ -268,8 +277,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     () => ({
       ready, session, profile, permissions, online,
       signIn: async (email, password) => {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw new Error(error.message === 'Invalid login credentials' ? 'Invalid email or password' : error.message);
+        setSession(data.session);
+        await loadProfile(data.session); // go to Home as soon as the profile is in
       },
       signOut: async () => {
         await supabase.auth.signOut();

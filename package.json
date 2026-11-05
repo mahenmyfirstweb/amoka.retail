@@ -10,7 +10,11 @@
   "scripts": {
     "dev": "npm run dev -w @amoka/web",
     "dev:sales": "npm run dev -w @amoka/sales",
+    "start:sales": "npm run serve -w @amoka/sales",
     "build": "npm run build -w @amoka/web && npm run build -w @amoka/sales",
     "typecheck": "npm run typecheck -w @amoka/web"
+  },
+  "allowScripts": {
+    "core-js": false
   }
 }
