@@ -9,7 +9,8 @@ if (!url || !anonKey) {
   console.error('Missing VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY. Copy apps/web/.env.example to apps/web/.env');
 }
 
-export const supabaseConfigured = !!url && !!anonKey;
+export const supabaseConfigured =
+  !!url && !!anonKey && !url.includes('YOUR-PROJECT') && anonKey !== 'your-anon-key';
 export const supabase = createClient(url ?? 'http://localhost', anonKey ?? 'missing');
 
 /** Turns Postgres / PostgREST errors into a readable message. */

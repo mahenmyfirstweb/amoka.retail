@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router';
 import { Loader2 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
@@ -14,6 +14,13 @@ export default function Login() {
 
   if (!loading && session && profile?.is_active) return <Navigate to="/" replace />;
   const inactive = !loading && session && profile && !profile.is_active;
+  const [noProfile, setNoProfile] = useState(false);
+  // Signed in but no profile row (login created before the database scripts were run).
+  useEffect(() => {
+    if (loading || !session || profile) return setNoProfile(false);
+    const t = setTimeout(() => setNoProfile(true), 1500);
+    return () => clearTimeout(t);
+  }, [loading, session, profile]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -61,6 +68,12 @@ export default function Login() {
           </div>
           {!supabaseConfigured && (
             <ErrorBox error="Supabase is not configured. Create apps/web/.env from .env.example with your project URL and anon key, then restart." />
+          )}
+          {noProfile && (
+            <div className="space-y-2">
+              <ErrorBox error="Your password is correct, but this login has no staff profile yet. Run supabase/migrations/20261107000006_fix_profiles_and_privileges.sql in the Supabase SQL Editor, then sign in again." />
+              <button type="button" className="btn-secondary w-full" onClick={signOut}>Sign out</button>
+            </div>
           )}
           {inactive && (
             <div className="space-y-2">
