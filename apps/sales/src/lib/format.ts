@@ -58,3 +58,7 @@ export function computeTotals(
     total: tax.taxInclusive ? net : round2(net + taxAmt),
   };
 }
+
+/** "Friday, 6 November 2026" — used on dashboard / home banners. */
+export const longDate = (d: Date = new Date()) =>
+  d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });

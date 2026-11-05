@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Bluetooth, ChevronRight, ClipboardList, CloudUpload, HandCoins, LayoutGrid, LogOut, Printer, RefreshCw, ScrollText, Store as StoreIcon, Undo2, Wallet } from 'lucide-react';
 import { useStore } from '../lib/store';
 import { supabase, supabaseConfigured } from '../lib/supabase';
-import { dateTimeFmt, money } from '../lib/format';
+import { dateTimeFmt, longDate, money } from '../lib/format';
 import { bluetoothSupported, connectPrinter, paperWidth, printReceipt, printerName, setPaperWidth } from '../lib/printer';
 import { CustomerBar, TopBar, useToast } from '../ui';
 
@@ -36,7 +36,7 @@ export function Home() {
     <div className="pb-6">
       <div className="relative overflow-hidden bg-gradient-to-br from-ink-800 via-ink-900 to-ink-950 px-5 pb-8 pt-6 text-white safe-top">
         <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-gold-400/20 blur-3xl" />
-        <div className="flex items-center justify-between"><div className="text-[11px] uppercase tracking-[0.3em] text-gold-300">amoka.retail · Sales</div><BrandLogo className="h-14" light /></div>
+        <div className="flex items-center justify-between"><div className="text-[11px] font-medium uppercase tracking-[0.3em] text-gold-300">{longDate()}</div><BrandLogo className="h-14" light /></div>
         <h1 className="mt-2 font-display text-3xl">Good {hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening'},<br />{profile?.full_name?.split(' ')[0]}</h1>
         <div className="mt-1 text-sm text-ink-400">{profile?.location?.name ?? 'No location set'}</div>
         <div className="mt-5 grid grid-cols-2 gap-3">

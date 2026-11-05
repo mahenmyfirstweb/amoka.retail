@@ -5,7 +5,7 @@ import { AlertTriangle, CalendarDays, Clock4, Package, ShoppingBag, TrendingUp, 
 import { rpc, supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import { useSettings, type Row } from '../lib/data';
-import { dateFmt, money, qtyFmt } from '../lib/format';
+import { dateFmt, longDate, money, qtyFmt } from '../lib/format';
 import { Empty, Loading, PageHeader, Stat, StatusBadge } from '../components/ui';
 
 function BarChart({ data }: { data: { date: string; total: number }[] }) {
@@ -55,7 +55,7 @@ export default function Dashboard() {
         <div className="pointer-events-none absolute -bottom-24 left-1/3 h-64 w-64 rounded-full bg-cocoa/50 blur-3xl" />
         <div className="relative flex flex-wrap items-center justify-between gap-6">
           <div>
-            <div className="text-[11px] font-medium uppercase tracking-[0.35em] text-gold-300/90">{new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
+            <div className="text-[11px] font-medium uppercase tracking-[0.35em] text-gold-300/90">{longDate()}</div>
             <h1 className="mt-2 font-display text-4xl">Good {hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening'}, {profile?.full_name?.split(' ')[0] ?? ''}</h1>
           </div>
           <BrandLogo className="h-24 drop-shadow-[0_12px_30px_rgba(0,0,0,0.5)]" light />
