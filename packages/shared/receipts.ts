@@ -78,7 +78,6 @@ export function invoiceLayout(d: InvoiceData, paper: Paper = 80): PLine[] {
   if (d.doc.ref_no) L.push({ k: 'text', text: `Ref: ${d.doc.ref_no}` });
   L.push({ k: 'gap' }, { k: 'text', text: `CUST: ${c.name ?? 'CASH CUSTOMER'}`, bold: true });
   if (c.address) L.push({ k: 'text', text: `ADDR: ${String(c.address).replace(/\n/g, ' ')}` });
-  if (d.username) L.push({ k: 'text', text: `User: ${d.username}` });
   if (d.doc.due_date && d.doc.type === 'INVOICE') L.push({ k: 'text', text: `Due Date: ${printDate(d.doc.due_date)}` });
   const narrow = paper === 58;
   const W = narrow ? [6, 6, 10, 10] : [16, 4, 6, 6];
@@ -232,7 +231,8 @@ export function toEscPos(lines: PLine[], paper: Paper = 80): Uint8Array {
 // ---------- HTML (system print) ----------
 const esc = (x: unknown) => String(x ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
-export function toHtml(lines: PLine[], paper: Paper = 80, logo?: string) {
+/** `_logo` is accepted for compatibility but printouts are text-only (no logo on top). */
+export function toHtml(lines: PLine[], paper: Paper = 80, _logo?: string) {
   const body = lines
     .map((l) => {
       if (l.k === 'gap') return `<div style="height:${10 * (l.n ?? 1)}px"></div>`;
@@ -246,8 +246,8 @@ export function toHtml(lines: PLine[], paper: Paper = 80, logo?: string) {
     @page{size:${paper}mm auto;margin:2mm} *{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#000}
     body{width:${paper - 6}mm;margin:0} table{width:100%;border-collapse:collapse} td{padding:1px 0;vertical-align:top}
     hr{border:0;border-top:1px solid #000;margin:4px 0} hr.d{border-top-style:dashed}
-    .lr{display:flex;justify-content:space-between;gap:6px}
-  </style></head><body>${logo ? `<div style="text-align:center"><img src="${esc(logo)}" style="max-width:55%;max-height:60px" onerror="this.remove()"></div>` : ''}${body}</body></html>`;
+    .lr{display:flex;flex-wrap:wrap;justify-content:space-between;column-gap:8px} .lr span{white-space:nowrap}
+  </style></head><body>${body}</body></html>`;
 }
 
 /** Prints the HTML in a hidden frame (browser print dialog at 80mm / 58mm). */
@@ -292,7 +292,8 @@ export async function toPdf(lines: PLine[], paper: Paper = 80, logoUrl?: string 
   const M = 4; // side margin mm
   const W = paper - M * 2;
   const LH = 4.1; // line height mm
-  const logo = await imageData(logoUrl);
+  const logo = null as Awaited<ReturnType<typeof imageData>>; // no logo on printed / PDF documents
+  void logoUrl;
   const logoW = logo ? Math.min(42, W) : 0;
   const logoH = logo ? (logoW * logo.h) / logo.w : 0;
 
