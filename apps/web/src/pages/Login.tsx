@@ -6,7 +6,7 @@ import { supabaseConfigured } from '../lib/supabase';
 import { ErrorBox } from '../components/ui';
 
 export default function Login() {
-  const { session, profile, loading, signIn, signOut } = useAuth();
+  const { session, profile, profileError, loading, signIn, signOut } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
@@ -71,7 +71,7 @@ export default function Login() {
           )}
           {noProfile && (
             <div className="space-y-2">
-              <ErrorBox error="Your password is correct, but this login has no staff profile yet. Run supabase/migrations/20261107000006_fix_profiles_and_privileges.sql in the Supabase SQL Editor, then sign in again." />
+              <ErrorBox error={profileError ? `Password OK, but the database refused to load your profile: ${profileError}. Run supabase/migrations/20261107000008_grants.sql in the Supabase SQL Editor, then sign out and sign in again.` : 'Password OK, but this login has no staff profile. Run supabase/migrations/20261107000007_own_profile_and_owner_admin.sql in the Supabase SQL Editor, then sign out and sign in again.'} />
               <button type="button" className="btn-secondary w-full" onClick={signOut}>Sign out</button>
             </div>
           )}

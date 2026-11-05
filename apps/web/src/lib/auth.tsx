@@ -17,6 +17,8 @@ interface AuthState {
   loading: boolean;
   session: Session | null;
   profile: Profile | null;
+  /** Database error while loading the profile (e.g. missing grants). */
+  profileError: string | null;
   permissions: Set<string>;
   /** Working location for new documents (defaults to the user's location). */
   locationId: number | null;
@@ -35,6 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [permissions, setPermissions] = useState<Set<string>>(new Set());
+  const [profileError, setProfileError] = useState<string | null>(null);
   const [locationId, setLoc] = useState<number | null>(() => Number(localStorage.getItem(LOC_KEY)) || null);
 
   async function loadProfile(s: Session | null) {
@@ -43,10 +46,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setPermissions(new Set());
       return;
     }
-    const [{ data: p }, { data: perms }] = await Promise.all([
+    const [{ data: p, error: pErr }, { data: perms, error: permErr }] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', s.user.id).maybeSingle(),
       supabase.rpc('my_permissions'),
     ]);
+    const err = pErr ?? permErr;
+    setProfileError(err ? `${err.message}${err.code ? ` (${err.code})` : ''}` : null);
     setProfile((p as Profile) ?? null);
     setPermissions(new Set((perms as string[]) ?? []));
     if (p && !localStorage.getItem(LOC_KEY) && p.location_id) setLoc(p.location_id);
@@ -72,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     session,
     profile,
+    profileError,
     permissions,
     locationId: locationId ?? profile?.location_id ?? null,
     setLocationId: (id) => {
