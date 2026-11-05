@@ -1,6 +1,12 @@
 export const money = (n: number | null | undefined) =>
   (n ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+/** Price with dollar sign, e.g. "$7.95" / "-$4.00". */
+export const price = (n: number | null | undefined) => {
+  const v = Number(n ?? 0);
+  return `${v < 0 ? '-' : ''}$${money(Math.abs(v))}`;
+};
+
 export const qtyFmt = (n: number | null | undefined) =>
   (n ?? 0).toLocaleString(undefined, { maximumFractionDigits: 3 });
 

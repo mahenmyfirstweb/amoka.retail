@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ClipboardList, CloudUpload, FileDown, FileText, HandCoins, MessageCircle, Printer, RefreshCw, ScrollText, Undo2 } from 'lucide-react';
 import { useStore, type Row } from '../lib/store';
 import { rpc, supabase } from '../lib/supabase';
-import { dateFmt, dateTimeFmt, money, qtyFmt, round2 } from '../lib/format';
+import { dateFmt, dateTimeFmt, price, qtyFmt, round2 } from '../lib/format';
 import { downloadInvoicePdf, invoiceDataFromDoc, printReceipt, whatsappInvoice } from '../lib/printer';
 import { Empty, Sheet, TopBar, useToast } from '../ui';
 
@@ -75,7 +75,7 @@ export default function Orders() {
                     <div className="text-xs text-ink-400">{d.doc_no} · {LABEL[d.type]} · {dateFmt(d.doc_date)}</div>
                   </div>
                   <div className="text-right">
-                    <div className="font-semibold tabular-nums">{money(d.total)}</div>
+                    <div className="font-semibold tabular-nums">{price(d.total)}</div>
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${cls}`}>{st}</span>
                   </div>
                 </button>
@@ -182,24 +182,24 @@ export function OrderView() {
             <div key={l.id} className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm">
               <div className="min-w-0">
                 <div className="truncate font-medium text-ink-900">{l.description}</div>
-                <div className="text-xs text-ink-400">{qtyFmt(l.qty)} {l.product?.uom?.code ?? ''} × {money(l.price)}{Number(l.discount) ? ` − ${money(l.discount)}` : ''}</div>
+                <div className="text-xs text-ink-400">{qtyFmt(l.qty)} {l.product?.uom?.code ?? ''} × {price(l.price)}{Number(l.discount) ? ` − ${price(l.discount)}` : ''}</div>
               </div>
-              <div className="font-semibold tabular-nums">{money(l.line_total)}</div>
+              <div className="font-semibold tabular-nums">{price(l.line_total)}</div>
             </div>
           ))}
           <div className="space-y-1 px-4 py-3 text-sm">
-            {Number(d.discount) > 0 && <div className="flex justify-between text-ink-500"><span>Discount</span><span>-{money(d.discount)}</span></div>}
+            {Number(d.discount) > 0 && <div className="flex justify-between text-ink-500"><span>Discount</span><span>-{price(d.discount)}</span></div>}
             {settings?.show_tax && (
               <>
-                <div className="flex justify-between text-ink-500"><span>Subtotal</span><span className="tabular-nums">{money(d.subtotal)}</span></div>
-                <div className="flex justify-between text-ink-500"><span>{settings?.tax_name}</span><span className="tabular-nums">{money(d.tax)}</span></div>
+                <div className="flex justify-between text-ink-500"><span>Subtotal</span><span className="tabular-nums">{price(d.subtotal)}</span></div>
+                <div className="flex justify-between text-ink-500"><span>{settings?.tax_name}</span><span className="tabular-nums">{price(d.tax)}</span></div>
               </>
             )}
-            <div className="flex justify-between text-base font-semibold"><span>Total</span><span className="tabular-nums">{settings?.currency} {money(d.total)}</span></div>
+            <div className="flex justify-between text-base font-semibold"><span>Total</span><span className="tabular-nums">{price(d.total)}</span></div>
             {d.type === 'INVOICE' && (
               <>
-                <div className="flex justify-between text-ink-500"><span>Paid</span><span className="tabular-nums">{money(d.paid)}</span></div>
-                <div className={`flex justify-between font-semibold ${bal > 0 ? 'text-rose-600' : 'text-emerald-700'}`}><span>Balance</span><span className="tabular-nums">{money(bal)}</span></div>
+                <div className="flex justify-between text-ink-500"><span>Paid</span><span className="tabular-nums">{price(d.paid)}</span></div>
+                <div className={`flex justify-between font-semibold ${bal > 0 ? 'text-rose-600' : 'text-emerald-700'}`}><span>Balance</span><span className="tabular-nums">{price(bal)}</span></div>
               </>
             )}
             {d.type === 'RETURN' && (
@@ -207,7 +207,7 @@ export function OrderView() {
             )}
             {custBal !== undefined && custBal !== null && (
               <div className="mt-2 flex justify-between rounded-xl bg-ink-900 px-3 py-2 font-semibold text-white">
-                <span>Shop total outstanding</span><span className="tabular-nums">{money(Number(custBal))}</span>
+                <span>Shop total outstanding</span><span className="tabular-nums">{price(Number(custBal))}</span>
               </div>
             )}
           </div>
@@ -223,7 +223,7 @@ export function OrderView() {
             <button className="btn-gold col-span-2" disabled={busy} onClick={convert}><FileText size={17} /> Convert to invoice</button>
           )}
           {d.type === 'INVOICE' && d.status !== 'VOID' && bal > 0.004 && permissions.has('receipts') && d.customer && (
-            <button className="btn-gold col-span-2" onClick={() => nav(`/collect/${d.customer.id}?doc=${d.id}`)}><HandCoins size={17} /> Receive payment · {money(bal)}</button>
+            <button className="btn-gold col-span-2" onClick={() => nav(`/collect/${d.customer.id}?doc=${d.id}`)}><HandCoins size={17} /> Receive payment · {price(bal)}</button>
           )}
           {d.type === 'INVOICE' && d.status !== 'VOID' && permissions.has('sales_return') && d.customer && (
             <button className="btn-secondary" onClick={() => nav(`/return/${d.customer.id}?invoice=${d.id}`)}><Undo2 size={17} /> Return items</button>

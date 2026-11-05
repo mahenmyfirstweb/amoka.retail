@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import { AlertCircle, CheckCircle2, ChevronLeft, ClipboardList, Home, LayoutGrid, Menu, ShoppingCart, Store as StoreIcon, WifiOff, X } from 'lucide-react';
 import { useStore, type Row } from './lib/store';
-import { money } from './lib/format';
+import { price } from './lib/format';
 
 // ---------- toast ----------
 const ToastCtx = createContext<(kind: 'ok' | 'err', text: string) => void>(() => {});
@@ -157,7 +157,7 @@ export function AppShell() {
       {showCartBar && (
         <NavLink to="/cart" className="mx-3 mb-2 flex items-center justify-between rounded-2xl bg-gradient-to-r from-ink-900 to-ink-800 px-5 py-3.5 text-white shadow-xl">
           <span className="text-sm"><b>{count}</b> item{count === 1 ? '' : 's'}</span>
-          <span className="font-semibold">View cart · {money(total)}</span>
+          <span className="font-semibold">View cart · {price(total)}</span>
         </NavLink>
       )}
       <nav className="grid grid-cols-5 border-t border-ink-100 bg-white safe-bottom">

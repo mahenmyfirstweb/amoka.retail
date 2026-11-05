@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import { ShoppingCart, Trash2 } from 'lucide-react';
 import { newClientRef, useStore, type Row } from '../lib/store';
 import { rpc } from '../lib/supabase';
-import { computeTotals, money } from '../lib/format';
+import { computeTotals, price } from '../lib/format';
 import { CustomerBar, Empty, ProductImage, Sheet, Stepper, TopBar, useToast } from '../ui';
 
 export default function Cart() {
@@ -87,10 +87,10 @@ export default function Cart() {
                 <button className="min-w-0 flex-1 text-left" onClick={() => setEditing(l.product_id)}>
                   <div className="line-clamp-2 text-sm font-medium text-ink-900">{l.name}</div>
                   <div className="text-xs text-ink-400">
-                    {money(l.price)}{l.uom ? ` / ${l.uom}` : ''}{l.discount ? ` · disc ${money(l.discount)}` : ''}
+                    {price(l.price)}{l.uom ? ` / ${l.uom}` : ''}{l.discount ? ` · disc ${price(l.discount)}` : ''}
                     {l.price !== l.list_price && <span className="ml-1 text-emerald-600">special</span>}
                   </div>
-                  <div className="text-sm font-semibold tabular-nums">{money(totals.lineTotals[i])}</div>
+                  <div className="text-sm font-semibold tabular-nums">{price(totals.lineTotals[i])}</div>
                 </button>
                 <Stepper size="sm" value={l.qty} onChange={(v) => setQty(l.product_id, v)} />
               </div>
@@ -121,7 +121,7 @@ export default function Cart() {
                     {paymodes.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                   </select>
                 </label>
-                <button className="col-span-2 text-left text-xs font-semibold text-gold-600" onClick={() => setCollect(totals.total)}>Collect full amount {money(totals.total)}</button>
+                <button className="col-span-2 text-left text-xs font-semibold text-gold-600" onClick={() => setCollect(totals.total)}>Collect full amount {price(totals.total)}</button>
               </div>
             )}
           </div>
@@ -130,19 +130,19 @@ export default function Cart() {
             <Row2 l="Items" r={`${cart.length} · qty ${cart.reduce((a, l) => a + l.qty, 0)}`} />
             {settings?.show_tax && (
               <>
-                <Row2 l="Subtotal" r={money(totals.subtotal)} />
-                <Row2 l={`${settings?.tax_name ?? 'Tax'} ${Number(settings?.tax_rate ?? 0)}%${tax.taxInclusive ? ' (incl.)' : ''}`} r={money(totals.tax)} />
+                <Row2 l="Subtotal" r={price(totals.subtotal)} />
+                <Row2 l={`${settings?.tax_name ?? 'Tax'} ${Number(settings?.tax_rate ?? 0)}%${tax.taxInclusive ? ' (incl.)' : ''}`} r={price(totals.tax)} />
               </>
             )}
             <div className="flex items-end justify-between border-t border-ink-100 pt-2">
               <span className="font-semibold">Total</span>
-              <span className="font-display text-2xl font-semibold tabular-nums">{settings?.currency} {money(totals.total)}</span>
+              <span className="font-display text-2xl font-semibold tabular-nums">{price(totals.total)}</span>
             </div>
-            {customer && Number(customer.credit_limit) > 0 && <div className="text-xs text-ink-400">Credit limit {money(customer.credit_limit)}</div>}
+            {customer && Number(customer.credit_limit) > 0 && <div className="text-xs text-ink-400">Credit limit {price(customer.credit_limit)}</div>}
           </div>
 
           <button className="btn-gold w-full py-4 text-base" disabled={busy || !customer} onClick={submit}>
-            {busy ? 'Saving…' : !customer ? 'Select a shop first' : type === 'ORDER' ? `Place order · ${money(totals.total)}` : `Create invoice · ${money(totals.total)}`}
+            {busy ? 'Saving…' : !customer ? 'Select a shop first' : type === 'ORDER' ? `Place order · ${price(totals.total)}` : `Create invoice · ${price(totals.total)}`}
           </button>
         </div>
       )}

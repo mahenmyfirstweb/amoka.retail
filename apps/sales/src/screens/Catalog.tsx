@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { LayoutGrid, List, PackageSearch, RefreshCw, Search, X } from 'lucide-react';
 import { stockAt, useStore, type Row } from '../lib/store';
-import { money, qtyFmt } from '../lib/format';
+import { price, qtyFmt } from '../lib/format';
 import { CustomerBar, Empty, ProductImage, Sheet, Stepper, TopBar } from '../ui';
 
 export default function Catalog() {
@@ -91,15 +91,12 @@ export default function Catalog() {
               <div key={p.id} onClick={() => setDetail(p)} className={`card flex flex-col overflow-hidden active:scale-[0.99] ${qty ? 'ring-2 ring-gold-400' : ''}`}>
                 <div className="relative">
                   <ProductImage p={p} className="aspect-square w-full" />
-                  <span className={`absolute left-2 top-2 rounded-full px-2 py-0.5 text-[10px] font-semibold ${stock > 0 ? 'bg-white/90 text-ink-600' : 'bg-rose-600 text-white'}`}>
-                    {stock > 0 ? `${qtyFmt(stock)} in stock` : 'Out of stock'}
-                  </span>
                 </div>
                 <div className="flex flex-1 flex-col p-3">
                   <div className="line-clamp-2 text-[13px] font-medium leading-snug text-ink-900">{p.name}</div>
-                  <div className="mt-0.5 text-[11px] text-ink-400">{p.code}{p.uom?.code ? ` · ${p.uom.code}` : ''}</div>
+                  <div className={`mt-1 inline-flex items-center gap-1 text-[11px] font-medium ${stock > 0 ? 'text-emerald-700' : 'text-rose-600'}`}><span className={`h-1.5 w-1.5 rounded-full ${stock > 0 ? 'bg-emerald-500' : 'bg-rose-500'}`} />{stock > 0 ? `${qtyFmt(stock)} in stock` : 'Out of stock'}</div>
                   <div className="mt-auto flex items-center justify-between pt-2.5">
-                    <div className="font-semibold tabular-nums text-ink-900">{money(priceFor(p))}</div>
+                    <div className="font-semibold tabular-nums text-ink-900">{price(priceFor(p))}</div>
                     {qty ? (
                       <Stepper size="sm" value={qty} onChange={(v) => setQty(p.id, v)} />
                     ) : (
@@ -121,8 +118,8 @@ export default function Catalog() {
                 <ProductImage p={p} className="h-14 w-14 shrink-0 rounded-xl" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium text-ink-900">{p.name}</div>
-                  <div className="text-xs text-ink-400">{p.code} · <span className={stock > 0 ? '' : 'text-rose-600'}>stock {qtyFmt(stock)}</span></div>
-                  <div className="text-sm font-semibold tabular-nums">{money(priceFor(p))}</div>
+                  <div className={`text-xs font-medium ${stock > 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{stock > 0 ? `${qtyFmt(stock)} in stock` : 'Out of stock'}</div>
+                  <div className="text-sm font-semibold tabular-nums">{price(priceFor(p))}</div>
                 </div>
                 {qty ? <Stepper size="sm" value={qty} onChange={(v) => setQty(p.id, v)} /> : (
                   <button className="flex h-9 w-9 items-center justify-center rounded-full bg-ink-900 text-lg text-white" onClick={(e) => { e.stopPropagation(); addToCart(p); }}>+</button>
@@ -160,7 +157,7 @@ function ProductSheet({ p, onClose }: { p: Row | null; onClose: () => void }) {
   const qty = cartQty(p.id);
   const gallery = [p.image_url, ...(p.images ?? []).sort((a: Row, b: Row) => a.sort_order - b.sort_order).map((i: Row) => i.url)].filter(Boolean);
   const carton = Number(p.pcs_per_carton) > 1 ? Number(p.pcs_per_carton) : 0;
-  const price = priceFor(p);
+  const unitPrice = priceFor(p);
   return (
     <Sheet
       open
@@ -169,7 +166,7 @@ function ProductSheet({ p, onClose }: { p: Row | null; onClose: () => void }) {
         <div className="flex items-center gap-3">
           {qty ? <Stepper value={qty} onChange={(v) => setQty(p.id, v)} /> : null}
           <button className="btn-gold flex-1" onClick={() => { if (!qty) addToCart(p); onClose(); }}>
-            {qty ? `Done · ${money(qty * price)}` : `Add to cart · ${money(price)}`}
+            {qty ? `Done · ${price(qty * unitPrice)}` : `Add to cart · ${price(unitPrice)}`}
           </button>
         </div>
       }
@@ -188,12 +185,12 @@ function ProductSheet({ p, onClose }: { p: Row | null; onClose: () => void }) {
           </div>
         )}
       </div>
-      <div className="text-xs font-medium uppercase tracking-wider text-gold-600">{p.brand?.name ?? p.code}</div>
+      {p.brand?.name && <div className="text-xs font-medium uppercase tracking-wider text-gold-600">{p.brand.name}</div>}
       <h2 className="mt-1 font-display text-2xl leading-tight text-ink-900">{p.name}</h2>
       <div className="mt-3 flex items-end gap-3">
-        <div className="text-2xl font-semibold tabular-nums">{money(price)}</div>
-        {price !== Number(p.sell_price) && <div className="pb-0.5 text-sm text-ink-400 line-through">{money(p.sell_price)}</div>}
-        {customer && price !== Number(p.sell_price) && <span className="pb-1 text-xs font-medium text-emerald-600">price for {customer.name}</span>}
+        <div className="text-2xl font-semibold tabular-nums">{price(unitPrice)}</div>
+        {unitPrice !== Number(p.sell_price) && <div className="pb-0.5 text-sm text-ink-400 line-through">{price(p.sell_price)}</div>}
+        {customer && unitPrice !== Number(p.sell_price) && <span className="pb-1 text-xs font-medium text-emerald-600">price for {customer.name}</span>}
       </div>
       <div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs">
         <Info label="Stock here" value={qtyFmt(stockAt(p, profile?.location_id))} />
