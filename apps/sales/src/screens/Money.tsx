@@ -39,7 +39,8 @@ export function Receipt() {
   const qc = useQueryClient();
   const { paymodes, profile, settings } = useStore();
   const customer = useCustomer(customerId);
-  const cash = paymodes.find((p) => p.is_cash) ?? paymodes[0];
+  // Default = first paymode in Master → Paymode order (Bill to Bill).
+  const cash = paymodes[0];
   const [paymodeId, setPaymodeId] = useState<number | null>(null);
   const [selected, setSelected] = useState<Record<number, number>>({});
   const [chequeNo, setChequeNo] = useState('');

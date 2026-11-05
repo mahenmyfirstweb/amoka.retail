@@ -23,7 +23,8 @@ export default function Cart() {
   const tax = { taxRate: Number(settings?.tax_rate ?? 0), taxInclusive: !!settings?.tax_inclusive };
   const totals = computeTotals(cart, discount, tax);
   const canInvoice = permissions.has('sales_invoice');
-  const cash = paymodes.find((p) => p.is_cash) ?? paymodes[0];
+  // Default = first paymode in Master → Paymode order (Bill to Bill).
+  const cash = paymodes[0];
 
   async function submit() {
     if (!customer) return toast('err', 'Select the retail shop first');
