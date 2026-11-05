@@ -2,11 +2,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, Circle, HandCoins, MessageCircle, Minus, Plus, Printer, Search, Trash2, Undo2 } from 'lucide-react';
+import { CheckCircle2, Circle, FileDown, HandCoins, MessageCircle, Minus, Plus, Printer, Search, Trash2, Undo2 } from 'lucide-react';
 import { newClientRef, useStore, type Row } from '../lib/store';
 import { rpc, supabase } from '../lib/supabase';
 import { dateFmt, dateTimeFmt, isoDate, money, qtyFmt, round2 } from '../lib/format';
-import { printPaymentReceipt, printStatement, printDate, type PaymentReceiptData } from '../lib/printer';
+import { downloadReceiptPdf, downloadStatementPdf, loadPaymentReceipt, printPaymentReceipt, printStatement, whatsappReceipt, whatsappStatement } from '../lib/printer';
 import { Empty, ProductImage, Sheet, TopBar, useToast } from '../ui';
 
 function useCustomer(id: string | undefined) {
@@ -99,9 +99,13 @@ export function Receipt() {
     } catch (e) { toast('err', (e as Error).message); } finally { setBusy(false); }
   }
 
-  async function printDone() {
+  /** action: print | pdf | whatsapp */
+  async function receiptAction(action: 'print' | 'pdf' | 'whatsapp') {
     try {
-      await printPaymentReceipt(await loadPaymentReceipt(done!.id, settings, profile?.full_name));
+      const data = await loadPaymentReceipt(supabase, done!.id, settings, profile?.full_name);
+      if (action === 'print') await printPaymentReceipt(data);
+      else if (action === 'pdf') await downloadReceiptPdf(data);
+      else if ((await whatsappReceipt(data)) === 'fallback') toast('ok', 'PDF downloaded — attach it in WhatsApp');
     } catch (e) { toast('err', (e as Error).message); }
   }
 
@@ -163,7 +167,7 @@ export function Receipt() {
       </div>
 
       <Sheet open={!!done} onClose={() => nav(-1)} title={`Receipt ${done?.receipt_no ?? ''} saved`} footer={
-        <div className="grid grid-cols-2 gap-2"><button className="btn-primary" onClick={printDone}><Printer size={16} /> Print</button><button className="btn-secondary" onClick={() => nav('/')}>Done</button></div>
+        <div className="space-y-2"><div className="grid grid-cols-3 gap-2"><button className="btn-primary" onClick={() => receiptAction('print')}><Printer size={16} /> Print</button><button className="btn-secondary" onClick={() => receiptAction('pdf')}><FileDown size={16} /> PDF</button><button className="btn-secondary !text-emerald-700" onClick={() => receiptAction('whatsapp')}><MessageCircle size={16} /> WhatsApp</button></div><button className="btn-ghost w-full" onClick={() => nav('/')}>Done</button></div>
       }>
         <p className="text-sm text-ink-600">{money(amount)} received from <b>{customer?.name}</b> by {pm?.name}.</p>
         {done?.balanceAfter !== undefined && <p className="mt-2 text-sm">Remaining outstanding: <b>{money(Number(done.balanceAfter))}</b></p>}
@@ -366,10 +370,17 @@ export function Statement() {
     if (!customer) return;
     try { await printStatement({ settings, customer, from, to, rows: rows as never }); } catch (e) { toast('err', (e as Error).message); }
   }
-  function share() {
-    const body = rows.map((r) => (r.kind === 'OPENING' ? `Opening balance: ${money(r.balance)}` : `${dateFmt(r.tx_date)} ${r.doc_no} ${r.debit ? money(r.debit) : '-' + money(r.credit)}`)).join('\n');
-    const text = `*${settings?.company_name}*\nStatement for ${customer?.name}\n${dateFmt(from)} – ${dateFmt(to)}\n\n${body}\n\n*Balance due: ${settings?.currency} ${money(closing)}*`;
-    window.open(`https://wa.me/${customer?.phone?.replace(/[^\d]/g, '') ?? ''}?text=${encodeURIComponent(text)}`, '_blank');
+  const stmt = () => ({ settings, customer: customer!, from, to, rows: rows as never });
+  async function share() {
+    if (!customer) return;
+    try {
+      const r = await whatsappStatement(stmt());
+      if (r === 'fallback') toast('ok', 'PDF downloaded — attach it in WhatsApp');
+    } catch (e) { toast('err', (e as Error).message); }
+  }
+  async function pdf() {
+    if (!customer) return;
+    try { await downloadStatementPdf(stmt()); } catch (e) { toast('err', (e as Error).message); }
   }
 
   return (
@@ -410,9 +421,10 @@ export function Statement() {
           <span className="text-sm text-gold-300">Balance due</span>
           <span className="font-display text-2xl font-semibold tabular-nums">{settings?.currency} {money(closing)}</span>
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <button className="btn-primary" onClick={print}><Printer size={17} /> Print</button>
-          <button className="btn-secondary" onClick={share}><MessageCircle size={17} /> WhatsApp</button>
+          <button className="btn-secondary" onClick={pdf}><FileDown size={17} /> PDF</button>
+          <button className="btn-secondary !text-emerald-700" onClick={share}><MessageCircle size={17} /> WhatsApp</button>
         </div>
       </div>
     </div>
@@ -457,8 +469,15 @@ export function ReceiptsList() {
   const nav = useNavigate();
   const toast = useToast();
   const { online, settings, profile } = useStore();
-  async function reprint(id: number) {
-    try { await printPaymentReceipt(await loadPaymentReceipt(id, settings, profile?.full_name)); } catch (e) { toast('err', (e as Error).message); }
+  const [menu, setMenu] = useState<number | null>(null);
+  async function act(id: number, action: 'print' | 'pdf' | 'whatsapp') {
+    setMenu(null);
+    try {
+      const data = await loadPaymentReceipt(supabase, id, settings, profile?.full_name);
+      if (action === 'print') await printPaymentReceipt(data);
+      else if (action === 'pdf') await downloadReceiptPdf(data);
+      else if ((await whatsappReceipt(data)) === 'fallback') toast('ok', 'PDF downloaded — attach it in WhatsApp');
+    } catch (e) { toast('err', (e as Error).message); }
   }
   const { data = [] } = useQuery({
     queryKey: ['my-receipts'],
@@ -477,48 +496,18 @@ export function ReceiptsList() {
                 <div className="text-xs text-ink-400">{r.receipt_no} · {dateTimeFmt(r.receipt_date)} · {r.paymode?.name}</div>
               </button>
               <div className="text-right"><div className="font-semibold tabular-nums">{money(r.amount)}</div>{r.status === 'VOID' && <div className="text-[10px] font-semibold text-rose-600">VOID</div>}</div>
-              {r.status !== 'VOID' && <button className="rounded-full bg-ink-900 p-2 text-gold-300" title="Print receipt" onClick={() => reprint(r.id)}><Printer size={16} /></button>}
+              {r.status !== 'VOID' && <button className="rounded-full bg-ink-900 p-2 text-gold-300" title="Print / PDF / WhatsApp" onClick={() => setMenu(r.id)}><Printer size={16} /></button>}
             </div>
           ))}
         </div>
       )}
+      <Sheet open={menu !== null} onClose={() => setMenu(null)} title="Receipt">
+        <div className="grid grid-cols-3 gap-2 pb-2">
+          <button className="btn-primary" onClick={() => act(menu!, 'print')}><Printer size={16} /> Print</button>
+          <button className="btn-secondary" onClick={() => act(menu!, 'pdf')}><FileDown size={16} /> PDF</button>
+          <button className="btn-secondary !text-emerald-700" onClick={() => act(menu!, 'whatsapp')}><MessageCircle size={16} /> WhatsApp</button>
+        </div>
+      </Sheet>
     </div>
   );
-}
-
-/**
- * Builds the receipt printout: each invoice paid in this receipt, plus sales returns credited to those
- * invoices (as minus rows), like the old system's receipt.
- */
-export async function loadPaymentReceipt(receiptId: number, settings: Row | null, salesman?: string): Promise<PaymentReceiptData> {
-  const { data: r, error } = await supabase
-    .from('receipts')
-    .select('id, receipt_no, receipt_date, amount, cheque_no, reference, customer:customers(name, code), paymode:paymodes(name), allocations:receipt_allocations(amount, doc:sales_docs(id, doc_no, doc_date, total, paid, credited))')
-    .eq('id', receiptId)
-    .single();
-  if (error || !r) throw new Error(error?.message ?? 'Receipt not found');
-  const rec = r as Row;
-  const invIds = rec.allocations.map((a: Row) => a.doc.id);
-  const { data: rets } = invIds.length
-    ? await supabase.from('return_allocations').select('doc_id, amount, ret:sales_docs!return_id(doc_no, doc_date, status)').in('doc_id', invIds)
-    : { data: [] as Row[] };
-  const activeRets = (rets ?? []).filter((x: Row) => x.ret?.status !== 'VOID');
-  const rows: PaymentReceiptData['rows'] = [];
-  for (const a of rec.allocations as Row[]) {
-    const retForInv = activeRets.filter((x: Row) => x.doc_id === a.doc.id);
-    const retSum = retForInv.reduce((s: number, x: Row) => s + Number(x.amount), 0);
-    rows.push({
-      no: a.doc.doc_no,
-      date: printDate(a.doc.doc_date),
-      amount: Number(a.doc.total),
-      paid: round2(Number(a.amount) + retSum),
-      balance: round2(Number(a.doc.total) - Number(a.doc.paid) - Number(a.doc.credited)),
-      credit: 0,
-      isReturn: false,
-    });
-    for (const x of retForInv) {
-      rows.push({ no: x.ret.doc_no, date: printDate(x.ret.doc_date), amount: -Number(x.amount), paid: -Number(x.amount), balance: 0, credit: 0, isReturn: true });
-    }
-  }
-  return { settings, receipt: rec, customer: rec.customer, payMode: rec.paymode?.name ?? '', rows, salesman };
 }

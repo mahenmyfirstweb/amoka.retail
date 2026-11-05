@@ -1,7 +1,8 @@
+import { downloadReceiptPdf, loadReceipt, printReceipt80, whatsappReceipt } from '../lib/thermal';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Ban, Plus, Printer } from 'lucide-react';
+import { Ban, FileDown, MessageCircle, Plus, Printer } from 'lucide-react';
 import { supabase, rpc } from '../lib/supabase';
 import { like, useBanks, usePaymodes, useSettings, useTable, type Row } from '../lib/data';
 import { useAuth } from '../lib/auth';
@@ -271,6 +272,18 @@ export function PaymentView({ kind }: { kind: Kind }) {
   });
   if (isLoading || !r) return <Loading />;
 
+  /** 80mm print / PDF / WhatsApp for customer receipts. */
+  async function thermal(action: 'print' | 'pdf' | 'whatsapp') {
+    try {
+      const data = await loadReceipt(r!.id, settings ?? null);
+      if (action === 'print') printReceipt80(data);
+      else if (action === 'pdf') await downloadReceiptPdf(data);
+      else if ((await whatsappReceipt(data)) === 'fallback') toast('ok', 'PDF downloaded and WhatsApp opened — attach the PDF to send');
+    } catch (e) {
+      toast('err', (e as Error).message);
+    }
+  }
+
   async function doVoid() {
     if (!confirm(`Void ${r![c.no]}? Allocated documents become unpaid again.`)) return;
     try {
@@ -287,7 +300,16 @@ export function PaymentView({ kind }: { kind: Kind }) {
       <div className="no-print mb-5 flex items-center justify-between">
         <Link to={c.base} className="text-xs font-medium text-ink-400 hover:text-ink-700">← {c.title}</Link>
         <div className="flex gap-2">
-          <button className="btn-primary" onClick={() => window.print()}><Printer size={15} /> Print</button>
+          {kind === 'receipt' ? (
+            <>
+              <button className="btn-primary" onClick={() => thermal('print')}><Printer size={15} /> Print 80mm</button>
+              <button className="btn-secondary" onClick={() => window.print()}><Printer size={15} /> A4</button>
+              <button className="btn-secondary" onClick={() => thermal('pdf')}><FileDown size={15} /> PDF</button>
+              <button className="btn-secondary !text-emerald-700" onClick={() => thermal('whatsapp')}><MessageCircle size={15} /> WhatsApp</button>
+            </>
+          ) : (
+            <button className="btn-primary" onClick={() => window.print()}><Printer size={15} /> Print</button>
+          )}
           {r.status !== 'VOID' && can('void_docs') && <button className="btn-ghost text-rose-600" onClick={doVoid}><Ban size={15} /> Void</button>}
         </div>
       </div>

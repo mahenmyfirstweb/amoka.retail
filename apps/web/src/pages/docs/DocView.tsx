@@ -1,8 +1,9 @@
+import { downloadInvoicePdf, invoiceDataFromDoc, printInvoice80, whatsappInvoice } from '../../lib/thermal';
 import { BrandLogo } from '../../components/Brand';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRightLeft, Ban, HandCoins, Pencil, Printer } from 'lucide-react';
+import { ArrowRightLeft, Ban, FileDown, HandCoins, MessageCircle, Pencil, Printer } from 'lucide-react';
 import { supabase, rpc } from '../../lib/supabase';
 import { useSettings, type Row } from '../../lib/data';
 import { useAuth } from '../../lib/auth';
@@ -54,7 +55,7 @@ export default function DocView({ kind }: { kind: DocKind }) {
       const { data, error } = await supabase
         .from(def.table)
         .select(
-          `*, party:${def.partyTable}(*), location:locations(name, address, phone), user:profiles(full_name),
+          `*, party:${def.partyTable}(*), location:locations(name, address, phone), user:profiles(full_name, username),
            lines:${def.linesTable}(*, product:products(code, uom:uoms(code))),
            source:${def.table}!source_id(id, doc_no, type),
            allocations:${allocTable}(amount, ${payRel})`,
@@ -74,6 +75,19 @@ export default function DocView({ kind }: { kind: DocKind }) {
     enabled: showBalance,
     queryFn: () => rpc<number>('customer_outstanding', { p_customer: doc!.customer_id }),
   });
+
+  /** 80mm print / PDF / WhatsApp for sales documents (same layout as the salesman app). */
+  async function thermal(action: 'print' | 'pdf' | 'whatsapp') {
+    if (!doc) return;
+    const data = invoiceDataFromDoc({ ...doc, customer: doc.party }, settings ?? null, showBalance ? customerBalance : undefined);
+    try {
+      if (action === 'print') printInvoice80(data);
+      else if (action === 'pdf') await downloadInvoicePdf(data);
+      else if ((await whatsappInvoice(data)) === 'fallback') toast('ok', 'PDF downloaded and WhatsApp opened — attach the PDF to send');
+    } catch (e) {
+      toast('err', (e as Error).message);
+    }
+  }
 
   if (isLoading) return <Loading />;
   if (error || !doc) return <ErrorBox error={error ?? 'Not found'} />;
@@ -122,7 +136,16 @@ export default function DocView({ kind }: { kind: DocKind }) {
               ? can('receipts') && <button className="btn-gold" onClick={() => nav(`/receipts/new?customer=${party.id}&doc=${doc.id}`)}><HandCoins size={15} /> Receive payment</button>
               : can('payments') && <button className="btn-gold" onClick={() => nav(`/payments/new?supplier=${party.id}&doc=${doc.id}`)}><HandCoins size={15} /> Make payment</button>
           )}
-          <button className="btn-primary" onClick={() => window.print()}><Printer size={15} /> Print</button>
+          {kind === 'sales' ? (
+            <>
+              <button className="btn-primary" onClick={() => thermal('print')}><Printer size={15} /> Print 80mm</button>
+              <button className="btn-secondary" onClick={() => window.print()}><Printer size={15} /> A4</button>
+              <button className="btn-secondary" onClick={() => thermal('pdf')}><FileDown size={15} /> PDF</button>
+              <button className="btn-secondary !text-emerald-700" onClick={() => thermal('whatsapp')}><MessageCircle size={15} /> WhatsApp</button>
+            </>
+          ) : (
+            <button className="btn-primary" onClick={() => window.print()}><Printer size={15} /> Print</button>
+          )}
           {doc.status !== 'VOID' && can('void_docs') && (
             <button className="btn-ghost text-rose-600" onClick={() => setVoidOpen(true)}><Ban size={15} /> Void</button>
           )}

@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ClipboardList, CloudUpload, FileText, HandCoins, MessageCircle, Printer, RefreshCw, ScrollText, Undo2 } from 'lucide-react';
+import { ClipboardList, CloudUpload, FileDown, FileText, HandCoins, MessageCircle, Printer, RefreshCw, ScrollText, Undo2 } from 'lucide-react';
 import { useStore, type Row } from '../lib/store';
 import { rpc, supabase } from '../lib/supabase';
 import { dateFmt, dateTimeFmt, money, qtyFmt, round2 } from '../lib/format';
-import { printReceipt } from '../lib/printer';
+import { downloadInvoicePdf, invoiceDataFromDoc, printReceipt, whatsappInvoice } from '../lib/printer';
 import { Empty, Sheet, TopBar, useToast } from '../ui';
 
 const LABEL: Record<string, string> = { ORDER: 'Order', INVOICE: 'Invoice', QUOTE: 'Quote', RETURN: 'Return', DELIVERY: 'Delivery' };
@@ -116,17 +116,13 @@ export function OrderView() {
     queryFn: () => rpc<number>('customer_outstanding', { p_customer: d!.customer_id }),
   });
 
-  const receiptData = useMemo(() => d && ({
-    settings,
-    doc: d,
-    customer: d.customer,
-    salesman: d.user?.full_name ?? profile?.full_name,
-    username: d.user?.username ?? profile?.username,
-    lines: [...d.lines].sort((a: Row, b: Row) => a.line_no - b.line_no).map((l: Row) => ({ description: l.description, qty: l.qty, price: l.price, discount: Number(l.discount), line_total: l.line_total, uom: l.product?.uom?.code })),
-    payments: d.allocations.filter((a: Row) => a.receipt.status === 'ACTIVE').map((a: Row) => ({ name: a.receipt.paymode.name, amount: a.amount })),
-    outstanding: custBal === undefined || custBal === null ? undefined : Number(custBal),
-    note: d.type === 'RETURN' ? `Reason: ${String(d.return_reason ?? '-').replace('_', ' ')}${d.restock ? '' : ' (written off)'}` : undefined,
-  }), [d, settings, profile, custBal]);
+  const receiptData = useMemo(() => {
+    if (!d) return null;
+    const data = invoiceDataFromDoc(d, settings, custBal);
+    data.salesman = data.salesman ?? profile?.full_name;
+    data.username = data.username ?? profile?.username;
+    return data;
+  }, [d, settings, profile, custBal]);
 
   async function print() {
     try { await printReceipt(receiptData!); } catch (e) { toast('err', (e as Error).message); }
@@ -142,11 +138,16 @@ export function OrderView() {
   const [st, cls] = statusOf(d);
   const bal = round2(d.total - d.paid - d.credited);
 
-  function share() {
-    const lines = [...d!.lines].sort((a: Row, b: Row) => a.line_no - b.line_no).map((l: Row) => `• ${l.description} × ${qtyFmt(l.qty)} = ${money(l.line_total)}`).join('\n');
-    const text = `*${settings?.company_name}*\n${LABEL[d!.type]} ${d!.doc_no} · ${dateFmt(d!.doc_date)}\n${d!.customer?.name ?? ''}\n\n${lines}\n\n*Total: ${settings?.currency} ${money(d!.total)}*${d!.type === 'INVOICE' && bal > 0 ? `\nBalance due: ${money(bal)}` : ''}\n\nThank you!`;
-    const tel = d!.customer?.phone?.replace(/[^\d]/g, '') ?? '';
-    window.open(`https://wa.me/${tel}?text=${encodeURIComponent(text)}`, '_blank');
+  /** WhatsApp: share sheet with the PDF attached (pick contact or group). */
+  async function share() {
+    setBusy(true);
+    try {
+      const r = await whatsappInvoice(receiptData!);
+      if (r === 'fallback') toast('ok', 'PDF downloaded — attach it in WhatsApp (auto-attach needs the HTTPS app address)');
+    } catch (e) { toast('err', (e as Error).message); } finally { setBusy(false); }
+  }
+  async function pdf() {
+    try { await downloadInvoicePdf(receiptData!); } catch (e) { toast('err', (e as Error).message); }
   }
 
   async function convert() {
@@ -213,8 +214,11 @@ export function OrderView() {
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-          <button className="btn-primary" onClick={print}><Printer size={17} /> Print</button>
-          <button className="btn-secondary" onClick={share}><MessageCircle size={17} /> WhatsApp</button>
+          <div className="col-span-2 grid grid-cols-3 gap-2">
+            <button className="btn-primary" onClick={print}><Printer size={17} /> Print</button>
+            <button className="btn-secondary" onClick={pdf}><FileDown size={17} /> PDF</button>
+            <button className="btn-secondary !text-emerald-700" disabled={busy} onClick={share}><MessageCircle size={17} /> WhatsApp</button>
+          </div>
           {d.type === 'ORDER' && d.status === 'OPEN' && permissions.has('sales_invoice') && (
             <button className="btn-gold col-span-2" disabled={busy} onClick={convert}><FileText size={17} /> Convert to invoice</button>
           )}
