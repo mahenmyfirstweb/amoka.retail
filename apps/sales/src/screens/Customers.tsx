@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { MapPin, MessageCircle, Phone, Plus, Search, Store as StoreIcon, UserRound } from 'lucide-react';
 import { useStore, type Row } from '../lib/store';
-import { supabase } from '../lib/supabase';
+import { rpc, supabase } from '../lib/supabase';
 import { dateFmt, money } from '../lib/format';
 import { Empty, Sheet, TopBar, useToast } from '../ui';
 
@@ -81,8 +81,7 @@ function CustomerInfo({ c, onClose, onChoose }: { c: Row | null; onClose: () => 
         .neq('status', 'VOID')
         .order('id', { ascending: false })
         .limit(30);
-      const invoices = (docs ?? []).filter((d) => d.type === 'INVOICE');
-      const outstanding = invoices.reduce((s, d) => s + Math.max(d.total - d.paid - d.credited, 0), 0);
+      const outstanding = Number(await rpc<number>('customer_outstanding', { p_customer: c!.id }));
       return { docs: docs ?? [], outstanding };
     },
   });
@@ -104,7 +103,11 @@ function CustomerInfo({ c, onClose, onChoose }: { c: Row | null; onClose: () => 
         <>
           <div className="mt-4 flex items-center justify-between rounded-2xl bg-ink-900 p-4 text-white">
             <div><div className="text-xs text-gold-300">Outstanding</div><div className="text-xl font-semibold tabular-nums">{money(data.outstanding)}</div></div>
-            {data.outstanding > 0 && <button className="btn-gold py-2 text-xs" onClick={() => { onClose(); nav(`/collect/${c.id}`); }}>Collect</button>}
+            {data.outstanding > 0 && <button className="btn-gold py-2 text-xs" onClick={() => { onClose(); nav(`/collect/${c.id}`); }}>Receive payment</button>}
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            <button className="btn-secondary py-2.5 text-xs" onClick={() => { onClose(); nav(`/return/${c.id}`); }}>Sales return</button>
+            <button className="btn-secondary py-2.5 text-xs" onClick={() => { onClose(); nav(`/statement/${c.id}`); }}>Statement</button>
           </div>
           <div className="mt-4 text-xs font-semibold uppercase tracking-wider text-ink-400">Recent documents</div>
           <div className="mt-1 divide-y divide-ink-100">

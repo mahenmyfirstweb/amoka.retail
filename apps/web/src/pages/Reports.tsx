@@ -8,6 +8,7 @@ import { dateFmt, isoDate, money, qtyFmt } from '../lib/format';
 import { Empty, ErrorBox, Field, Loading, PageHeader, Tabs } from '../components/ui';
 import { PartyPicker } from '../components/Pickers';
 import { CompanyHeader } from './docs/DocView';
+import { InvoiceRegister } from './Reports2';
 
 function monthStart() {
   const d = new Date();
@@ -22,6 +23,7 @@ export function SalesReport({ profit }: { profit?: boolean }) {
   const [loc, setLoc] = useState('');
   const { data = [], isLoading, error } = useQuery({
     queryKey: ['report-sales', from, to, group, loc],
+    enabled: group !== 'invoices',
     queryFn: () => rpc<Row[]>('report_sales', { p_from: from, p_to: to, p_group: group, p_location: loc ? Number(loc) : null }),
   });
   const tot = data.reduce((t, r) => ({ qty: t.qty + Number(r.qty), amount: t.amount + Number(r.amount), cost: t.cost + Number(r.cost), profit: t.profit + Number(r.profit), invoices: t.invoices + Number(r.invoices) }), { qty: 0, amount: 0, cost: 0, profit: 0, invoices: 0 });
@@ -31,7 +33,7 @@ export function SalesReport({ profit }: { profit?: boolean }) {
       <PageHeader title={profit ? 'Profit Analysis' : 'Sales Report'} subtitle="Net of returns, excluding tax" actions={<button className="btn-secondary" onClick={() => window.print()}><Printer size={15} /> Print</button>} />
       <div className="no-print">
         <Tabs
-          tabs={[{ key: 'day', label: 'By day' }, { key: 'product', label: 'By product' }, { key: 'category', label: 'By category' }, { key: 'customer', label: 'By customer' }, { key: 'salesman', label: 'By salesman' }]}
+          tabs={[...(profit ? [] : [{ key: 'invoices', label: 'Invoice list' }]), { key: 'day', label: 'By day' }, { key: 'product', label: 'By product' }, { key: 'category', label: 'By category' }, { key: 'customer', label: 'By customer' }, { key: 'salesman', label: 'By salesman' }]}
           value={group}
           onChange={setGroup}
         />
@@ -48,7 +50,7 @@ export function SalesReport({ profit }: { profit?: boolean }) {
           </Field>
         </div>
         <div className="hidden p-4 text-sm print:block">{profit ? 'Profit Analysis' : 'Sales Report'} · {dateFmt(from)} – {dateFmt(to)}</div>
-        {isLoading ? <Loading /> : error ? <div className="p-4"><ErrorBox error={error} /></div> : !data.length ? <Empty>No sales in this period</Empty> : (
+        {group === 'invoices' ? <InvoiceRegister from={from} to={to} location={loc} /> : isLoading ? <Loading /> : error ? <div className="p-4"><ErrorBox error={error} /></div> : !data.length ? <Empty>No sales in this period</Empty> : (
           <table className="table">
             <thead>
               <tr>

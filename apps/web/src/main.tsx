@@ -17,6 +17,7 @@ import { PaymentList, PaymentNew, PaymentView } from './pages/Payments';
 import { StockList, StockNew, StockView } from './pages/Stock';
 import Pos from './pages/Pos';
 import { AgingReport, CustomerStatement, SalesReport } from './pages/Reports';
+import { CustomerOutstandingReport, ReceiptReport } from './pages/Reports2';
 import {
   Account, DataImport, OpeningBalances, PosSessions, PriceList, Roles, Settings, Users, VoucherList, VoucherNew, VoucherView,
 } from './pages/Admin';
@@ -127,6 +128,8 @@ createRoot(document.getElementById('root')!).render(
                   <Route path="opening-balances" element={<OpeningBalances />} />
                   <Route path="pos/sessions" element={<PosSessions />} />
 
+                  <Route path="reports/customer-outstanding" element={<CustomerOutstandingReport />} />
+                  <Route path="reports/receipts" element={<ReceiptReport />} />
                   <Route path="reports/sales" element={<SalesReport />} />
                   <Route path="reports/profit" element={<SalesReport profit />} />
                   <Route path="reports/receivable" element={<AgingReport kind="CUSTOMER" />} />

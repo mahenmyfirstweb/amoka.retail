@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import { Bluetooth, ChevronRight, ClipboardList, CloudUpload, LayoutGrid, LogOut, Printer, RefreshCw, Store as StoreIcon, Wallet } from 'lucide-react';
+import { Bluetooth, ChevronRight, ClipboardList, CloudUpload, HandCoins, LayoutGrid, LogOut, Printer, RefreshCw, ScrollText, Store as StoreIcon, Undo2, Wallet } from 'lucide-react';
 import { useStore } from '../lib/store';
 import { supabase, supabaseConfigured } from '../lib/supabase';
 import { dateTimeFmt, money } from '../lib/format';
@@ -50,7 +50,11 @@ export function Home() {
           <Tile icon={<StoreIcon size={22} />} title="Retail shops" sub={`${customers.length} shops`} onClick={() => nav('/customers')} />
           <Tile icon={<LayoutGrid size={22} />} title="Catalog" sub={`${products.length} products`} onClick={() => nav('/catalog')} />
           <Tile icon={<ClipboardList size={22} />} title="My orders" sub={pending.length ? `${pending.length} waiting to send` : 'History & print'} onClick={() => nav('/orders')} />
-          <Tile icon={<Wallet size={22} />} title="Collect payment" sub={customer ? customer.name : 'Select a shop first'} onClick={() => (customer ? nav(`/collect/${customer.id}`) : nav('/customers'))} />
+          <Tile icon={<Wallet size={22} />} title="Receive payment" sub="Receipt against invoices" onClick={() => nav('/pick/collect')} />
+          <Tile icon={<Undo2 size={22} />} title="Sales return" sub="Expired / damaged goods" onClick={() => nav('/pick/return')} />
+          <Tile icon={<ScrollText size={22} />} title="Statement" sub="Outstanding by date range" onClick={() => nav('/pick/statement')} />
+          <Tile icon={<HandCoins size={22} />} title="My receipts" sub="Payments collected" onClick={() => nav('/receipts')} />
+          <Tile icon={<ClipboardList size={22} />} title="Returns list" sub="Credit notes" onClick={() => nav('/orders')} />
         </div>
         <div className="px-4 text-center text-xs text-ink-400">{lastSync ? `Catalog updated ${dateTimeFmt(lastSync)}` : 'Catalog not downloaded yet'}</div>
       </div>

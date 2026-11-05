@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ClipboardList, CloudUpload, FileText, HandCoins, MessageCircle, Printer, RefreshCw } from 'lucide-react';
+import { ClipboardList, CloudUpload, FileText, HandCoins, MessageCircle, Printer, RefreshCw, ScrollText, Undo2 } from 'lucide-react';
 import { useStore, type Row } from '../lib/store';
 import { rpc, supabase } from '../lib/supabase';
 import { dateFmt, dateTimeFmt, money, qtyFmt, round2 } from '../lib/format';
@@ -40,7 +40,7 @@ export default function Orders() {
     <div>
       <TopBar title="My orders" right={<button className="rounded-full p-2 active:bg-white/10" onClick={() => refetch()}><RefreshCw size={19} className={isFetching ? 'animate-spin' : ''} /></button>} />
       <div className="no-scrollbar flex gap-2 overflow-x-auto px-3 pt-3">
-        {[['', 'All'], ['ORDER', 'Orders'], ['INVOICE', 'Invoices'], ['QUOTE', 'Quotes']].map(([k, l]) => (
+        {[['', 'All'], ['ORDER', 'Orders'], ['INVOICE', 'Invoices'], ['RETURN', 'Returns'], ['QUOTE', 'Quotes']].map(([k, l]) => (
           <button key={k} className={`shrink-0 rounded-full px-4 py-2 text-[13px] font-semibold ${type === k ? 'bg-ink-900 text-white' : 'bg-white text-ink-600 ring-1 ring-ink-100'}`} onClick={() => setType(k)}>{l}</button>
         ))}
       </div>
@@ -109,6 +109,13 @@ export function OrderView() {
     },
   });
 
+  // Shop's total outstanding (invoices - returns - receipts), printed on invoices and returns.
+  const { data: custBal } = useQuery({
+    queryKey: ['cust-bal', d?.customer_id, d?.updated_at],
+    enabled: !!d?.customer_id && ['INVOICE', 'RETURN'].includes(d?.type),
+    queryFn: () => rpc<number>('customer_outstanding', { p_customer: d!.customer_id }),
+  });
+
   const receiptData = useMemo(() => d && ({
     settings,
     doc: d,
@@ -116,7 +123,9 @@ export function OrderView() {
     salesman: d.user?.full_name ?? profile?.full_name,
     lines: [...d.lines].sort((a: Row, b: Row) => a.line_no - b.line_no).map((l: Row) => ({ description: l.description, qty: l.qty, price: l.price, discount: Number(l.discount), line_total: l.line_total, uom: l.product?.uom?.code })),
     payments: d.allocations.filter((a: Row) => a.receipt.status === 'ACTIVE').map((a: Row) => ({ name: a.receipt.paymode.name, amount: a.amount })),
-  }), [d, settings, profile]);
+    outstanding: custBal === undefined || custBal === null ? undefined : Number(custBal),
+    note: d.type === 'RETURN' ? `Reason: ${String(d.return_reason ?? '-').replace('_', ' ')}${d.restock ? '' : ' (written off)'}` : undefined,
+  }), [d, settings, profile, custBal]);
 
   async function print() {
     try { await printReceipt(receiptData!); } catch (e) { toast('err', (e as Error).message); }
@@ -187,6 +196,14 @@ export function OrderView() {
                 <div className={`flex justify-between font-semibold ${bal > 0 ? 'text-rose-600' : 'text-emerald-700'}`}><span>Balance</span><span className="tabular-nums">{money(bal)}</span></div>
               </>
             )}
+            {d.type === 'RETURN' && (
+              <div className="text-xs text-ink-500">Reason: {String(d.return_reason ?? '—').replace('_', ' ').toLowerCase()} · {d.restock ? 'back to stock' : 'written off'}</div>
+            )}
+            {custBal !== undefined && custBal !== null && (
+              <div className="mt-2 flex justify-between rounded-xl bg-ink-900 px-3 py-2 font-semibold text-white">
+                <span>Shop total outstanding</span><span className="tabular-nums">{money(Number(custBal))}</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -197,7 +214,13 @@ export function OrderView() {
             <button className="btn-gold col-span-2" disabled={busy} onClick={convert}><FileText size={17} /> Convert to invoice</button>
           )}
           {d.type === 'INVOICE' && d.status !== 'VOID' && bal > 0.004 && permissions.has('receipts') && d.customer && (
-            <button className="btn-gold col-span-2" onClick={() => nav(`/collect/${d.customer.id}?doc=${d.id}`)}><HandCoins size={17} /> Collect payment · {money(bal)}</button>
+            <button className="btn-gold col-span-2" onClick={() => nav(`/collect/${d.customer.id}?doc=${d.id}`)}><HandCoins size={17} /> Receive payment · {money(bal)}</button>
+          )}
+          {d.type === 'INVOICE' && d.status !== 'VOID' && permissions.has('sales_return') && d.customer && (
+            <button className="btn-secondary" onClick={() => nav(`/return/${d.customer.id}?invoice=${d.id}`)}><Undo2 size={17} /> Return items</button>
+          )}
+          {d.customer && (
+            <button className="btn-secondary" onClick={() => nav(`/statement/${d.customer.id}`)}><ScrollText size={17} /> Statement</button>
           )}
         </div>
       </div>
@@ -205,120 +228,3 @@ export function OrderView() {
   );
 }
 
-export function Collect() {
-  const { customerId } = useParams();
-  const [sp] = useSearchParams();
-  const nav = useNavigate();
-  const toast = useToast();
-  const qc = useQueryClient();
-  const { customers, paymodes, profile, settings } = useStore();
-  const customer = customers.find((c) => c.id === Number(customerId));
-  const cash = paymodes.find((p) => p.is_cash) ?? paymodes[0];
-  const [paymodeId, setPaymodeId] = useState<number | null>(null);
-  const [amount, setAmount] = useState(0);
-  const [chequeNo, setChequeNo] = useState('');
-  const [reference, setReference] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState<Row | null>(null);
-
-  const { data: invoices = [] } = useQuery({
-    queryKey: ['open-inv', customerId],
-    queryFn: async () => {
-      const { data } = await supabase.from('sales_docs').select('id, doc_no, doc_date, due_date, total, paid, credited')
-        .eq('customer_id', Number(customerId)).eq('type', 'INVOICE').neq('status', 'VOID').order('doc_date');
-      return (data ?? []).map((d) => ({ ...d, bal: round2(d.total - d.paid - d.credited) })).filter((d) => d.bal > 0.004);
-    },
-  });
-  const totalDue = round2(invoices.reduce((s, i) => s + i.bal, 0));
-
-  useEffect(() => {
-    const docId = Number(sp.get('doc'));
-    const inv = invoices.find((i) => i.id === docId);
-    if (inv && !amount) setAmount(inv.bal);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [invoices]);
-
-  // Allocate oldest first (or the chosen invoice first).
-  const allocations = useMemo(() => {
-    const docId = Number(sp.get('doc'));
-    const ordered = [...invoices].sort((a, b) => (a.id === docId ? -1 : b.id === docId ? 1 : 0));
-    let left = amount;
-    const out: { doc_id: number; amount: number; doc_no: string }[] = [];
-    for (const i of ordered) {
-      if (left <= 0) break;
-      const a = round2(Math.min(left, i.bal));
-      out.push({ doc_id: i.id, amount: a, doc_no: i.doc_no });
-      left = round2(left - a);
-    }
-    return out;
-  }, [invoices, amount, sp]);
-
-  const pm = paymodes.find((p) => p.id === (paymodeId ?? cash?.id));
-
-  async function save() {
-    if (!(amount > 0)) return toast('err', 'Enter the amount collected');
-    setBusy(true);
-    try {
-      const r = await rpc<Row>('create_receipt', {
-        p: {
-          customer_id: Number(customerId), location_id: profile?.location_id, paymode_id: pm?.id, amount,
-          cheque_no: chequeNo || null, reference: reference || null,
-          allocations: allocations.map(({ doc_id, amount: a }) => ({ doc_id, amount: a })),
-        },
-      });
-      toast('ok', `${r.receipt_no} saved`);
-      qc.invalidateQueries();
-      setDone(r);
-    } catch (e) { toast('err', (e as Error).message); } finally { setBusy(false); }
-  }
-
-  async function printDone() {
-    try {
-      await printReceipt({
-        settings, customer: customer ?? null, salesman: profile?.full_name, title: 'OFFICIAL RECEIPT',
-        doc: { doc_no: done!.receipt_no, doc_date: done!.receipt_date, type: 'RECEIPT', subtotal: amount, tax: 0, total: amount, discount: 0 },
-        lines: allocations.map((a) => ({ description: `Payment for ${a.doc_no}`, qty: 1, price: a.amount, line_total: a.amount })),
-        payments: [{ name: pm?.name ?? '', amount }],
-      });
-    } catch (e) { toast('err', (e as Error).message); }
-  }
-
-  return (
-    <div className="pb-6">
-      <TopBar title="Collect payment" back />
-      <div className="space-y-3 p-3">
-        <div className="rounded-2xl bg-ink-900 p-5 text-white">
-          <div className="text-sm text-ink-300">{customer?.name}</div>
-          <div className="mt-1 text-xs uppercase tracking-wider text-gold-300">Total outstanding</div>
-          <div className="font-display text-3xl font-semibold tabular-nums">{settings?.currency} {money(totalDue)}</div>
-        </div>
-        <div className="card divide-y divide-ink-100">
-          {invoices.map((i) => (
-            <div key={i.id} className="flex justify-between px-4 py-2.5 text-sm">
-              <div><div className="font-medium">{i.doc_no}</div><div className={`text-xs ${i.due_date && new Date(i.due_date) < new Date() ? 'text-rose-600' : 'text-ink-400'}`}>{dateFmt(i.doc_date)}{i.due_date ? ` · due ${dateFmt(i.due_date)}` : ''}</div></div>
-              <div className="text-right"><div className="font-semibold tabular-nums">{money(i.bal)}</div>{allocations.find((a) => a.doc_id === i.id) && <div className="text-xs text-emerald-600">paying {money(allocations.find((a) => a.doc_id === i.id)!.amount)}</div>}</div>
-            </div>
-          ))}
-          {!invoices.length && <div className="p-4 text-center text-sm text-ink-400">No unpaid invoices</div>}
-        </div>
-        <div className="card space-y-3 p-4">
-          <label className="block"><span className="label">Amount collected</span><input className="input text-xl font-semibold" inputMode="decimal" value={amount || ''} onChange={(e) => setAmount(Number(e.target.value) || 0)} /></label>
-          <button className="text-xs font-semibold text-gold-600" onClick={() => setAmount(totalDue)}>Full amount {money(totalDue)}</button>
-          <div className="grid grid-cols-3 gap-2">
-            {paymodes.map((p) => (
-              <button key={p.id} className={`rounded-xl px-2 py-2.5 text-xs font-semibold ${pm?.id === p.id ? 'bg-ink-900 text-white' : 'bg-ink-50 text-ink-600'}`} onClick={() => setPaymodeId(p.id)}>{p.name}</button>
-            ))}
-          </div>
-          {pm?.code === 'CHEQUE' && <label className="block"><span className="label">Cheque no.</span><input className="input" value={chequeNo} onChange={(e) => setChequeNo(e.target.value)} /></label>}
-          <label className="block"><span className="label">Reference</span><input className="input" value={reference} onChange={(e) => setReference(e.target.value)} /></label>
-        </div>
-        <button className="btn-gold w-full py-4 text-base" disabled={busy || !(amount > 0)} onClick={save}>{busy ? 'Saving…' : `Save receipt · ${money(amount)}`}</button>
-      </div>
-      <Sheet open={!!done} onClose={() => nav(-1)} title={`Receipt ${done?.receipt_no ?? ''}`} footer={
-        <div className="grid grid-cols-2 gap-2"><button className="btn-primary" onClick={printDone}><Printer size={16} /> Print</button><button className="btn-secondary" onClick={() => nav('/')}>Done</button></div>
-      }>
-        <p className="text-sm text-ink-600">{money(amount)} received from {customer?.name} by {pm?.name}.</p>
-      </Sheet>
-    </div>
-  );
-}

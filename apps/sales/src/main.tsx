@@ -8,7 +8,8 @@ import { AppShell, ToastProvider } from './ui';
 import Catalog from './screens/Catalog';
 import Customers from './screens/Customers';
 import Cart from './screens/Cart';
-import Orders, { Collect, OrderView } from './screens/Orders';
+import Orders, { OrderView } from './screens/Orders';
+import { PickShop, Receipt, ReceiptsList, SalesReturn, Statement } from './screens/Money';
 import { Home, Login, More } from './screens/Misc';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -56,7 +57,11 @@ createRoot(document.getElementById('root')!).render(
                     <Route path="cart" element={<Cart />} />
                     <Route path="orders" element={<Orders />} />
                     <Route path="orders/:id" element={<OrderView />} />
-                    <Route path="collect/:customerId" element={<Collect />} />
+                    <Route path="collect/:customerId" element={<Receipt />} />
+                    <Route path="return/:customerId" element={<SalesReturn />} />
+                    <Route path="statement/:customerId" element={<Statement />} />
+                    <Route path="pick/:action" element={<PickShop />} />
+                    <Route path="receipts" element={<ReceiptsList />} />
                     <Route path="more" element={<More />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Route>

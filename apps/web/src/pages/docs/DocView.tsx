@@ -66,6 +66,14 @@ export default function DocView({ kind }: { kind: DocKind }) {
     },
   });
 
+  // Customer's total outstanding (all invoices - returns - receipts), shown on invoice / return printouts.
+  const showBalance = kind === 'sales' && !!doc?.customer_id && ['INVOICE', 'RETURN'].includes(doc?.type);
+  const { data: customerBalance } = useQuery({
+    queryKey: ['customer-outstanding', doc?.customer_id, doc?.updated_at],
+    enabled: showBalance,
+    queryFn: () => rpc<number>('customer_outstanding', { p_customer: doc!.customer_id }),
+  });
+
   if (isLoading) return <Loading />;
   if (error || !doc) return <ErrorBox error={error ?? 'Not found'} />;
   const t = def.types[doc.type];
@@ -226,10 +234,22 @@ export default function DocView({ kind }: { kind: DocKind }) {
                   <div className="flex justify-between font-semibold text-ink-900"><span>Balance due</span><span className="tabular-nums">{money(outstanding)}</span></div>
                 </>
               )}
+              {showBalance && customerBalance !== undefined && (
+                <div className="mt-3 flex justify-between rounded-lg bg-ink-900 px-3 py-2 font-semibold text-white">
+                  <span>Total outstanding (all invoices)</span>
+                  <span className="tabular-nums">{settings?.currency} {money(Number(customerBalance))}</span>
+                </div>
+              )}
             </div>
           </div>
         ) : null}
 
+        {doc.type === 'RETURN' && kind === 'sales' && (
+          <div className="mt-6 text-sm text-ink-600">
+            <b>Return reason:</b> {String(doc.return_reason ?? '—').replace('_', ' ').toLowerCase()}
+            {' · '}{doc.restock ? 'Goods returned to stock' : 'Goods written off (not resaleable)'}
+          </div>
+        )}
         {doc.notes && <div className="mt-6 whitespace-pre-line text-sm text-ink-600"><b>Notes:</b> {doc.notes}</div>}
         {kind === 'sales' && settings?.invoice_terms && doc.type === 'INVOICE' && (
           <div className="mt-6 whitespace-pre-line text-xs text-ink-400">{settings.invoice_terms}</div>

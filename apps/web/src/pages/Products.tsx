@@ -249,14 +249,17 @@ export default function Products() {
 
 export function ProductStock() {
   const { data: locations } = useLookup('locations');
+  const { data: categories } = useLookup('categories');
+  const [categoryId, setCategoryId] = useState('');
   const [locationId, setLocationId] = useState('');
   const [search, setSearch] = useState('');
   const [lowOnly, setLowOnly] = useState(false);
   const list = useTable('products', {
-    select: 'id, code, name, cost_price, min_stock, uom:uoms(code), stocks(qty, location_id)',
-    key: [search],
+    select: 'id, code, name, cost_price, sell_price, min_stock, category:categories(name), uom:uoms(code), stocks(qty, location_id)',
+    key: [search, categoryId],
     build: (q) => {
       q = q.eq('track_stock', true).eq('is_active', true);
+      if (categoryId) q = q.eq('category_id', Number(categoryId));
       if (search) q = q.or(`code.ilike.${like(search)},name.ilike.${like(search)}`);
       return q.order('name').limit(2000);
     },
@@ -273,10 +276,14 @@ export function ProductStock() {
 
   return (
     <div>
-      <PageHeader title="Product Stock" subtitle={`Stock value at cost: ${money(totalValue)}`} actions={<button className="btn-secondary" onClick={() => window.print()}>Print</button>} />
+      <PageHeader title="Product Stock Report" subtitle={`Stock value at cost: ${money(totalValue)}`} actions={<button className="btn-secondary" onClick={() => window.print()}>Print</button>} />
       <div className="card overflow-hidden">
         <div className="no-print flex flex-wrap items-center gap-2 border-b border-ink-100 p-3">
           <div className="w-72"><SearchInput value={search} onChange={setSearch} /></div>
+          <select className="input w-52" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+            <option value="">All categories</option>
+            {categories?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
           <select className="input w-52" value={locationId} onChange={(e) => setLocationId(e.target.value)}>
             <option value="">All locations</option>
             {locations?.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}

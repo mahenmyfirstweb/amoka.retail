@@ -148,7 +148,11 @@ export const MENU: Group[] = [
     icon: <BarChart3 size={17} />,
     need: 'reports',
     items: [
+      { to: '/reports/customer-outstanding', label: 'Customer Outstanding' },
       { to: '/reports/sales', label: 'Sales Report' },
+      { to: '/reports/receipts', label: 'Receipt Report' },
+      { to: '/products/stock', label: 'Product Stock Report' },
+      { to: '/statement', label: 'Customer Statement' },
       { to: '/reports/profit', label: 'Profit Analysis' },
       { to: '/reports/receivable', label: 'Receivable Aging' },
       { to: '/reports/payable', label: 'Payable Aging' },

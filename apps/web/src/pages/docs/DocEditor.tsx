@@ -10,6 +10,8 @@ import { ErrorBox, Field, Loading, PageHeader, useToast } from '../../components
 import { PartyPicker, ProductPicker } from '../../components/Pickers';
 import { kindDef, type DocKind } from './config';
 
+export const RETURN_REASONS = [['EXPIRED', 'Expired'], ['DAMAGED', 'Damaged'], ['WRONG_ITEM', 'Wrong item / not ordered'], ['OTHER', 'Other']] as const;
+
 interface Line {
   product_id: number;
   code: string;
@@ -46,6 +48,8 @@ export default function DocEditor({ kind }: { kind: DocKind }) {
   const [sourceId, setSourceId] = useState<number | null>(null);
   const [sourceNo, setSourceNo] = useState('');
   const [sourceOptions, setSourceOptions] = useState<Row[]>([]);
+  const [returnReason, setReturnReason] = useState('');
+  const [restock, setRestock] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -154,11 +158,16 @@ export default function DocEditor({ kind }: { kind: DocKind }) {
       lines: lines.map((l) => ({ product_id: l.product_id, description: l.description, qty: l.qty, price: l.price, discount: l.discount })),
     };
     if (dueDate) p.due_date = dueDate;
-    if (sourceId) p.source_id = sourceId;
+    const salesReturn = kind === 'sales' && type === 'RETURN';
+    if (sourceId && !salesReturn) p.source_id = sourceId;
+    if (salesReturn) {
+      if (!returnReason) { setSaving(false); return setError('Select the return reason'); }
+      Object.assign(p, { invoice_id: sourceId, return_reason: returnReason, restock });
+    }
     try {
       const doc = id
         ? await rpc<Row>(def.updateFn, { p_id: Number(id), p })
-        : await rpc<Row>(def.createFn, { p });
+        : await rpc<Row>(salesReturn ? 'create_sales_return' : def.createFn, { p });
       qc.invalidateQueries();
       toast('ok', `${doc.doc_no} saved`);
       nav(`${def.base}/doc/${doc.id}`, { replace: true });
@@ -207,8 +216,22 @@ export default function DocEditor({ kind }: { kind: DocKind }) {
           <Field label={kind === 'purchase' ? "Supplier's invoice / DO no." : 'Reference / PO no.'}>
             <input className="input" value={refNo} onChange={(e) => setRefNo(e.target.value)} />
           </Field>
+          {kind === 'sales' && type === 'RETURN' && (
+            <>
+              <Field label="Return reason *">
+                <select className="input" value={returnReason} onChange={(e) => { setReturnReason(e.target.value); setRestock(!['EXPIRED', 'DAMAGED'].includes(e.target.value)); }}>
+                  <option value="">Select…</option>
+                  {RETURN_REASONS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                </select>
+              </Field>
+              <label className="flex items-center gap-2 self-end pb-2.5 text-sm">
+                <input type="checkbox" checked={restock} onChange={(e) => setRestock(e.target.checked)} />
+                Put goods back into stock {!restock && <span className="text-xs text-rose-600">(written off)</span>}
+              </label>
+            </>
+          )}
           {t.sourceType && !id && !sp.get('from') && (
-            <Field label={`Original ${def.types[t.sourceType].short} (optional — reduces its balance)`} className="md:col-span-2">
+            <Field label={`Original ${def.types[t.sourceType].short} (optional — ${kind === 'sales' ? 'credited first, then oldest unpaid invoices' : 'reduces its balance'})`} className="md:col-span-2">
               <select className="input" value={sourceId ?? ''} onChange={(e) => setSourceId(e.target.value ? Number(e.target.value) : null)} disabled={!party}>
                 <option value="">— none —</option>
                 {sourceOptions.map((s) => <option key={s.id} value={s.id}>{s.doc_no} · {money(s.total)}</option>)}
