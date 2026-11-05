@@ -1,15 +1,16 @@
 {
-  "name": "amoka.retail Sales",
-  "short_name": "amoka sales",
-  "description": "Catalog and order taking for amoka.retail salesmen",
+  "name": "Amoka Sales",
+  "short_name": "Amoka Sales",
+  "description": "Catalog and order taking for Amoka salesmen",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#080d1a",
-  "theme_color": "#080d1a",
+  "background_color": "#211611",
+  "theme_color": "#211611",
   "icons": [
-    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
-    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
   ]
 }

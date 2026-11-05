@@ -1,9 +1,9 @@
 // amoka sales service worker: app shell offline, network-first for pages, cache-first for static assets.
 // Supabase API calls are never cached here (the app keeps its own offline copy of data).
-const CACHE = 'amoka-sales-v1';
+const CACHE = 'amoka-sales-v2';
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['/', '/manifest.webmanifest', '/icon.svg'])));
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['/', '/manifest.webmanifest', '/icon-192.png', '/logo.png'])));
   self.skipWaiting();
 });
 

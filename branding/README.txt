@@ -1,2 +1,2 @@
-Put the original logo here as logo.jpg (or logo.png).
-The build step removes the black background and copies it to apps/web/public/logo.png and apps/sales/public/logo.png.
+logo-original.jpg  - logo as supplied (black background)
+logo.png           - transparent version used by both apps (apps/*/public/logo.png)

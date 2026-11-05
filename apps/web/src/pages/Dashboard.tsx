@@ -57,7 +57,6 @@ export default function Dashboard() {
           <div>
             <div className="text-[11px] font-medium uppercase tracking-[0.35em] text-gold-300/90">{new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
             <h1 className="mt-2 font-display text-4xl">Good {hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening'}, {profile?.full_name?.split(' ')[0] ?? ''}</h1>
-            <p className="mt-2 text-sm text-ink-300">Today's sales <span className="font-semibold text-gold-200">{cur} {money(d.sales.today)}</span> · {d.sales.today_count} invoices</p>
           </div>
           <BrandLogo className="h-24 drop-shadow-[0_12px_30px_rgba(0,0,0,0.5)]" light />
         </div>
