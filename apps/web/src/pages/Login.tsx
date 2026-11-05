@@ -12,8 +12,6 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!loading && session && profile?.is_active) return <Navigate to="/" replace />;
-  const inactive = !loading && session && profile && !profile.is_active;
   const [noProfile, setNoProfile] = useState(false);
   // Signed in but no profile row (login created before the database scripts were run).
   useEffect(() => {
@@ -21,6 +19,10 @@ export default function Login() {
     const t = setTimeout(() => setNoProfile(true), 1500);
     return () => clearTimeout(t);
   }, [loading, session, profile]);
+
+  // All hooks must run before any early return.
+  if (!loading && session && profile?.is_active) return <Navigate to="/" replace />;
+  const inactive = !loading && session && profile && !profile.is_active;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();

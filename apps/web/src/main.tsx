@@ -1,4 +1,4 @@
-import { StrictMode } from 'react';
+import { Component, StrictMode, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -20,6 +20,27 @@ import { AgingReport, CustomerStatement, SalesReport } from './pages/Reports';
 import {
   Account, DataImport, OpeningBalances, PosSessions, PriceList, Roles, Settings, Users, VoucherList, VoucherNew, VoucherView,
 } from './pages/Admin';
+
+/** Shows the error instead of a blank page if any screen crashes. */
+class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null };
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 p-6 text-center">
+        <h1 className="font-display text-2xl text-ink-900">Something went wrong on this screen</h1>
+        <pre className="max-w-2xl whitespace-pre-wrap rounded-lg bg-rose-50 p-4 text-left text-xs text-rose-700">{this.state.error.message}</pre>
+        <div className="flex gap-2">
+          <button className="btn-secondary" onClick={() => history.back()}>Go back</button>
+          <button className="btn-primary" onClick={() => location.reload()}>Reload</button>
+        </div>
+      </div>
+    );
+  }
+}
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false, retry: 1, staleTime: 10_000 } },
@@ -43,6 +64,7 @@ function RequireAuth() {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
+    <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
         <AuthProvider>
@@ -117,5 +139,6 @@ createRoot(document.getElementById('root')!).render(
         </AuthProvider>
       </ToastProvider>
     </QueryClientProvider>
+    </ErrorBoundary>
   </StrictMode>,
 );
