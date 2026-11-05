@@ -6,7 +6,7 @@ import { CheckCircle2, Circle, HandCoins, MessageCircle, Minus, Plus, Printer, S
 import { newClientRef, useStore, type Row } from '../lib/store';
 import { rpc, supabase } from '../lib/supabase';
 import { dateFmt, dateTimeFmt, isoDate, money, qtyFmt, round2 } from '../lib/format';
-import { printReceipt, printStatement } from '../lib/printer';
+import { printPaymentReceipt, printStatement, printDate, type PaymentReceiptData } from '../lib/printer';
 import { Empty, ProductImage, Sheet, TopBar, useToast } from '../ui';
 
 function useCustomer(id: string | undefined) {
@@ -100,15 +100,8 @@ export function Receipt() {
   }
 
   async function printDone() {
-    const paidInv = invoices.filter((i) => selected[i.id] > 0);
     try {
-      await printReceipt({
-        settings, customer, salesman: profile?.full_name, title: 'OFFICIAL RECEIPT',
-        doc: { doc_no: done!.receipt_no, doc_date: done!.receipt_date, type: 'RECEIPT', subtotal: amount, tax: 0, total: amount, discount: 0 },
-        lines: paidInv.map((i) => ({ description: `${i.doc_no} (${dateFmt(i.doc_date)})`, qty: 1, price: selected[i.id], line_total: selected[i.id] })),
-        payments: [{ name: `${pm?.name ?? ''}${chequeNo ? ` chq ${chequeNo}` : ''}`, amount }],
-        outstanding: done!.balanceAfter === undefined ? undefined : Number(done!.balanceAfter),
-      });
+      await printPaymentReceipt(await loadPaymentReceipt(done!.id, settings, profile?.full_name));
     } catch (e) { toast('err', (e as Error).message); }
   }
 
@@ -462,7 +455,11 @@ export function PickShop() {
 // =====================================================================
 export function ReceiptsList() {
   const nav = useNavigate();
-  const { online } = useStore();
+  const toast = useToast();
+  const { online, settings, profile } = useStore();
+  async function reprint(id: number) {
+    try { await printPaymentReceipt(await loadPaymentReceipt(id, settings, profile?.full_name)); } catch (e) { toast('err', (e as Error).message); }
+  }
   const { data = [] } = useQuery({
     queryKey: ['my-receipts'],
     enabled: online,
@@ -474,13 +471,54 @@ export function ReceiptsList() {
       {!data.length ? <Empty icon={<HandCoins size={44} />} title="No receipts yet" /> : (
         <div className="divide-y divide-ink-100 bg-white">
           {data.map((r: Row) => (
-            <button key={r.id} className="flex w-full items-center justify-between px-4 py-3 text-left" onClick={() => r.customer && nav(`/statement/${r.customer.id}`)}>
-              <div><div className="font-semibold">{r.customer?.name ?? 'Walk-in'}</div><div className="text-xs text-ink-400">{r.receipt_no} · {dateFmt(r.receipt_date)} · {r.paymode?.name}</div></div>
+            <div key={r.id} className="flex items-center gap-3 px-4 py-3">
+              <button className="min-w-0 flex-1 text-left" onClick={() => r.customer && nav(`/statement/${r.customer.id}`)}>
+                <div className="truncate font-semibold">{r.customer?.name ?? 'Walk-in'}</div>
+                <div className="text-xs text-ink-400">{r.receipt_no} · {dateTimeFmt(r.receipt_date)} · {r.paymode?.name}</div>
+              </button>
               <div className="text-right"><div className="font-semibold tabular-nums">{money(r.amount)}</div>{r.status === 'VOID' && <div className="text-[10px] font-semibold text-rose-600">VOID</div>}</div>
-            </button>
+              {r.status !== 'VOID' && <button className="rounded-full bg-ink-900 p-2 text-gold-300" title="Print receipt" onClick={() => reprint(r.id)}><Printer size={16} /></button>}
+            </div>
           ))}
         </div>
       )}
     </div>
   );
+}
+
+/**
+ * Builds the receipt printout: each invoice paid in this receipt, plus sales returns credited to those
+ * invoices (as minus rows), like the old system's receipt.
+ */
+export async function loadPaymentReceipt(receiptId: number, settings: Row | null, salesman?: string): Promise<PaymentReceiptData> {
+  const { data: r, error } = await supabase
+    .from('receipts')
+    .select('id, receipt_no, receipt_date, amount, cheque_no, reference, customer:customers(name, code), paymode:paymodes(name), allocations:receipt_allocations(amount, doc:sales_docs(id, doc_no, doc_date, total, paid, credited))')
+    .eq('id', receiptId)
+    .single();
+  if (error || !r) throw new Error(error?.message ?? 'Receipt not found');
+  const rec = r as Row;
+  const invIds = rec.allocations.map((a: Row) => a.doc.id);
+  const { data: rets } = invIds.length
+    ? await supabase.from('return_allocations').select('doc_id, amount, ret:sales_docs!return_id(doc_no, doc_date, status)').in('doc_id', invIds)
+    : { data: [] as Row[] };
+  const activeRets = (rets ?? []).filter((x: Row) => x.ret?.status !== 'VOID');
+  const rows: PaymentReceiptData['rows'] = [];
+  for (const a of rec.allocations as Row[]) {
+    const retForInv = activeRets.filter((x: Row) => x.doc_id === a.doc.id);
+    const retSum = retForInv.reduce((s: number, x: Row) => s + Number(x.amount), 0);
+    rows.push({
+      no: a.doc.doc_no,
+      date: printDate(a.doc.doc_date),
+      amount: Number(a.doc.total),
+      paid: round2(Number(a.amount) + retSum),
+      balance: round2(Number(a.doc.total) - Number(a.doc.paid) - Number(a.doc.credited)),
+      credit: 0,
+      isReturn: false,
+    });
+    for (const x of retForInv) {
+      rows.push({ no: x.ret.doc_no, date: printDate(x.ret.doc_date), amount: -Number(x.amount), paid: -Number(x.amount), balance: 0, credit: 0, isReturn: true });
+    }
+  }
+  return { settings, receipt: rec, customer: rec.customer, payMode: rec.paymode?.name ?? '', rows, salesman };
 }

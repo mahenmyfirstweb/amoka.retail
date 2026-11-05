@@ -36,10 +36,11 @@ export function printReceipt(opts: {
   <div class="c"><img src="${esc(s.logo_url || location.origin + '/logo.png')}" style="max-width:55%;max-height:70px" onerror="this.remove()"></div>
   <div class="c big">${esc(s.company_name)}</div>
   ${s.address ? `<div class="c">${esc(s.address)}</div>` : ''}
-  ${s.phone ? `<div class="c">Tel: ${esc(s.phone)}</div>` : ''}
+  ${s.phone ? `<div class="c">TEL : ${esc(s.phone)}</div>` : ''}
+  ${s.reg_no ? `<div class="c">UEN No / CO REG NO: ${esc(s.reg_no)}</div>` : ''}
   ${s.show_tax && s.tax_reg_no ? `<div class="c">${esc(s.tax_name)} Reg: ${esc(s.tax_reg_no)}</div>` : ''}
   <hr>
-  <div class="c b">${opts.reprint ? 'REPRINT - ' : ''}${s.show_tax ? 'TAX INVOICE' : 'INVOICE'}</div>
+  <div class="c b">${opts.reprint ? 'REPRINT - ' : ''}${s.show_tax ? 'Tax Invoice' : 'Invoice'}</div>
   <table><tr><td>${esc(opts.doc.doc_no)}</td><td class="r">${dateTimeFmt(opts.doc.doc_date)}</td></tr>
   ${opts.cashier ? `<tr><td colspan="2">Cashier: ${esc(opts.cashier)}</td></tr>` : ''}
   ${opts.customer ? `<tr><td colspan="2">Customer: ${esc(opts.customer)}</td></tr>` : ''}</table>

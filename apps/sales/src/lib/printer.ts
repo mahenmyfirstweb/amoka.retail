@@ -4,7 +4,7 @@
  *  - Fallback: normal print dialog (Android print service, AirPrint, RawBT, etc.).
  */
 import type { Row } from './store';
-import { dateTimeFmt, money, qtyFmt } from './format';
+import { money, qtyFmt } from './format';
 
 // Common BLE "serial" services used by 58/80mm thermal printers.
 const SERVICES = [
@@ -82,12 +82,57 @@ class Builder {
   bytes() { return new Uint8Array(this.parts); }
 }
 
+// =====================================================================
+// Document layouts (same layout for Bluetooth ESC/POS and system print)
+// =====================================================================
+type Align = 'left' | 'center' | 'right';
+type PLine =
+  | { k: 'text'; text: string; align?: Align; bold?: boolean; big?: boolean }
+  | { k: 'lr'; left: string; right: string; bold?: boolean }
+  | { k: 'cols'; cols: string[]; widths: number[]; aligns: Align[]; bold?: boolean }
+  | { k: 'rule'; dashed?: boolean }
+  | { k: 'gap'; n?: number };
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+/** 08/10/2026 */
+export const printDate = (v: string | Date | null | undefined) => {
+  if (!v) return '';
+  const d = new Date(v);
+  return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}`;
+};
+/** 08/10/2026 10:36:00 AM */
+export const printDateTime = (v: string | Date | null | undefined) => {
+  if (!v) return '';
+  const d = new Date(v);
+  const h = d.getHours() % 12 || 12;
+  return `${printDate(d)} ${pad2(h)}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())} ${d.getHours() < 12 ? 'AM' : 'PM'}`;
+};
+
+function header(s: Row): PLine[] {
+  const out: PLine[] = [{ k: 'text', text: String(s.company_name ?? ''), align: 'center', bold: true, big: true }];
+  if (s.address) for (const part of String(s.address).split('\n')) out.push({ k: 'text', text: part, align: 'center' });
+  if (s.phone) out.push({ k: 'text', text: `TEL : ${s.phone}`, align: 'center' });
+  if (s.reg_no) out.push({ k: 'text', text: `UEN No / CO REG NO: ${s.reg_no}`, align: 'center' });
+  if (s.show_tax && s.tax_reg_no) out.push({ k: 'text', text: `${s.tax_name} REG NO: ${s.tax_reg_no}`, align: 'center' });
+  out.push({ k: 'gap' });
+  return out;
+}
+
+function footer(goods: boolean): PLine[] {
+  const out: PLine[] = [{ k: 'gap' }, { k: 'text', text: 'Customer Signature & Company Stamp' }, { k: 'gap', n: 4 }];
+  if (goods) out.push({ k: 'rule', dashed: true }, { k: 'text', text: 'RECEIVED ABOVE GOODS IN GOOD ORDER AND CONDITION', align: 'center' }, { k: 'rule', dashed: true });
+  return out;
+}
+
+const DOC_TITLE: Record<string, string> = { INVOICE: 'Invoice', ORDER: 'Sales Order', QUOTE: 'Quotation', RETURN: 'Sales Return', DELIVERY: 'Delivery Order' };
+
 export interface ReceiptData {
   settings: Row | null;
   doc: Row; // sales_docs row
   customer: Row | null;
   lines: { description: string; qty: number; price: number; discount?: number; line_total: number; uom?: string }[];
   salesman?: string;
+  username?: string;
   payments?: { name: string; amount: number }[];
   title?: string;
   /** Customer's total outstanding after this document (all invoices - returns - receipts). */
@@ -95,49 +140,166 @@ export interface ReceiptData {
   note?: string;
 }
 
-const TITLES: Record<string, string> = { ORDER: 'SALES ORDER', INVOICE: 'TAX INVOICE', QUOTE: 'QUOTATION', RETURN: 'CREDIT NOTE', DELIVERY: 'DELIVERY ORDER', RECEIPT: 'OFFICIAL RECEIPT' };
-const docTitle =(type: string, s: Row) => (type === 'INVOICE' && !s.show_tax ? 'INVOICE' : TITLES[type] ?? type);
-
-export function buildReceipt(d: ReceiptData) {
-  const cols = paperWidth() === 80 ? 48 : 32;
+/** Invoice / order / return — "Invoice" sample layout. */
+function invoiceLayout(d: ReceiptData): PLine[] {
   const s = d.settings ?? {};
-  const b = new Builder(cols);
-  b.align('center').bold(true).size(true).line(String(s.company_name ?? '').slice(0, cols / 2)).size(false).bold(false);
-  if (s.address) b.line(String(s.address).replace(/\n/g, ' '));
-  if (s.phone) b.line(`Tel: ${s.phone}`);
-  if (s.show_tax && s.tax_reg_no) b.line(`${s.tax_name} Reg: ${s.tax_reg_no}`);
-  b.rule().bold(true).line(d.title ?? docTitle(d.doc.type, s)).bold(false).align('left');
-  b.lr(d.doc.doc_no, dateTimeFmt(d.doc.doc_date));
-  if (d.customer) {
-    b.line(`Customer: ${d.customer.name}`);
-    if (d.customer.address) b.line(String(d.customer.address).replace(/\n/g, ' '));
-  }
-  if (d.salesman) b.line(`Salesman: ${d.salesman}`);
-  if (d.doc.due_date) b.line(`Due: ${new Date(d.doc.due_date).toLocaleDateString()}`);
-  b.rule();
-  for (const l of d.lines) {
-    b.line(l.description.slice(0, cols));
-    b.lr(`  ${qtyFmt(l.qty)}${l.uom ? ' ' + l.uom : ''} x ${money(l.price)}${l.discount ? ` -${money(l.discount)}` : ''}`, money(l.line_total));
-  }
-  b.rule();
-  if (Number(d.doc.discount)) b.lr('Discount', `-${money(d.doc.discount)}`);
-  if (s.show_tax) {
-    b.lr('Subtotal', money(d.doc.subtotal));
-    b.lr(`${s.tax_name ?? 'Tax'} ${Number(s.tax_rate ?? 0)}%`, money(d.doc.tax));
-  }
-  b.bold(true).size(cols >= 48).lr('TOTAL', `${s.currency ?? ''} ${money(d.doc.total)}`).size(false).bold(false);
-  for (const p of d.payments ?? []) b.lr(`Paid (${p.name})`, money(p.amount));
-  const bal = Number(d.doc.total) - Number(d.doc.paid ?? 0) - Number(d.doc.credited ?? 0);
-  if (d.doc.type === 'INVOICE' && bal > 0.004) b.lr('This invoice balance', money(bal));
-  if (d.note) b.line(d.note);
+  const cur = s.currency ?? 'SGD';
+  const c = d.customer ?? {};
+  const L: PLine[] = [...header(s), { k: 'text', text: d.title ?? DOC_TITLE[d.doc.type] ?? d.doc.type, align: 'center', bold: true }];
+  L.push({ k: 'lr', left: `No: ${d.doc.doc_no}`, right: `Date:${printDateTime(d.doc.doc_date)}` });
+  if (d.salesman) L.push({ k: 'text', text: `Person Incharge: ${d.salesman}` });
+  if (c.phone) L.push({ k: 'text', text: `Contact Nos: ${c.phone}` });
+  if (d.doc.ref_no) L.push({ k: 'text', text: `Ref: ${d.doc.ref_no}` });
+  L.push({ k: 'gap' }, { k: 'text', text: `CUST: ${c.name ?? 'CASH CUSTOMER'}`, bold: true });
+  if (c.address) L.push({ k: 'text', text: `ADDR: ${String(c.address).replace(/\n/g, ' ')}` });
+  if (d.username) L.push({ k: 'text', text: `User: ${d.username}` });
+  if (d.doc.due_date && d.doc.type === 'INVOICE') L.push({ k: 'text', text: `Due Date: ${printDate(d.doc.due_date)}` });
+  const narrow = paperWidth() === 58;
+  // 58mm: description on its own line, numbers below. 80mm: one row like the sample.
+  const W = narrow ? [6, 6, 10, 10] : [16, 4, 6, 6];
+  const A: Align[] = ['left', 'right', 'right', 'right'];
+  L.push({ k: 'rule' });
+  if (narrow) L.push({ k: 'text', text: 'SNO DESCRIPTION', bold: true }, { k: 'cols', cols: ['', 'QTY', 'PRICE', 'TOTAL'], widths: W, aligns: A, bold: true });
+  else L.push({ k: 'cols', cols: ['SNO DESCRIPTION', 'QTY', 'PRICE', 'TOTAL'], widths: W, aligns: A, bold: true });
+  L.push({ k: 'rule' });
+  d.lines.forEach((l, i) => {
+    L.push({ k: 'text', text: `${i + 1}  ${l.description}${l.uom ? `(${l.uom})` : ''}` });
+    L.push({ k: 'cols', cols: ['', qtyFmt(l.qty), money(l.price), money(l.line_total)], widths: W, aligns: A });
+    if (l.discount) L.push({ k: 'text', text: `less discount ${money(l.discount)}`, align: 'right' });
+  });
+  L.push({ k: 'rule' });
+  const gross = d.lines.reduce((a, l) => a + Number(l.line_total), 0);
+  L.push({ k: 'lr', left: '', right: `SUB TOTAL:${cur}  ${money(gross)}` });
+  if (Number(d.doc.discount)) L.push({ k: 'lr', left: '', right: `DISCOUNT:${cur}  -${money(d.doc.discount)}` });
+  if (s.show_tax) L.push({ k: 'lr', left: '', right: `${s.tax_name ?? 'GST'}(${Number(s.tax_rate ?? 0)}%):${cur}  ${money(d.doc.tax)}` });
+  L.push({ k: 'lr', left: '', right: `${d.doc.type === 'RETURN' ? 'RETURN TOTAL' : 'GRAND TOTAL'}:${cur}  ${money(d.doc.total)}`, bold: true });
+  for (const p of d.payments ?? []) L.push({ k: 'lr', left: '', right: `PAID (${p.name}):${cur}  ${money(p.amount)}` });
+  if (d.note) L.push({ k: 'text', text: d.note });
   if (d.outstanding !== undefined) {
-    b.rule().bold(true).lr('TOTAL OUTSTANDING', `${s.currency ?? ''} ${money(d.outstanding)}`).bold(false);
-    b.line('(all invoices less returns & payments)');
+    L.push({ k: 'rule' }, { k: 'text', text: `TOTAL OUTSTANDING : ${cur} ${money(d.outstanding)}`, bold: true }, { k: 'rule' });
   }
-  b.rule().align('center');
-  if (s.receipt_footer) b.line(String(s.receipt_footer));
-  b.line('').line('Customer signature').line('').line('_'.repeat(Math.min(cols, 24)));
+  L.push(...footer(d.doc.type !== 'QUOTE'));
+  return L;
+}
+
+export interface PaymentReceiptData {
+  settings: Row | null;
+  receipt: Row; // receipt_no, receipt_date, amount, cheque_no, reference
+  customer: Row | null;
+  payMode: string;
+  rows: { no: string; date: string; amount: number; paid: number; balance: number; credit: number; isReturn: boolean }[];
+  salesman?: string;
+}
+
+/** Payment receipt — "Receipt" sample layout. */
+function paymentLayout(d: PaymentReceiptData): PLine[] {
+  const s = d.settings ?? {};
+  const cur = s.currency ?? 'SGD';
+  const L: PLine[] = [...header(s), { k: 'text', text: 'Receipt', align: 'center', bold: true }];
+  L.push({ k: 'lr', left: `Receipt No: ${d.receipt.receipt_no}`, right: printDate(d.receipt.receipt_date) });
+  L.push({ k: 'text', text: `Customer: ${d.customer?.name ?? ''}` });
+  L.push({ k: 'lr', left: `CODE: ${d.customer?.code ?? ''}`, right: `Pay Mode: ${d.payMode.toUpperCase()}` });
+  if (d.receipt.cheque_no) L.push({ k: 'text', text: `Cheque No: ${d.receipt.cheque_no}` });
+  if (d.receipt.reference) L.push({ k: 'text', text: `Ref: ${d.receipt.reference}` });
+  if (d.salesman) L.push({ k: 'text', text: `Collected by: ${d.salesman}` });
+  const narrow = paperWidth() === 58;
+  const W = narrow ? [4, 14, 14] : [4, 12, 11, 9];
+  const A: Align[] = narrow ? ['left', 'left', 'right'] : ['left', 'left', 'left', 'right'];
+  const head = narrow ? ['SNo', 'Invoice No', 'Inv Date'] : ['SNo', 'Invoice No', 'Inv Date', 'Amount'];
+  L.push({ k: 'rule' }, { k: 'cols', cols: head, widths: W, aligns: A, bold: true }, { k: 'rule' });
+  d.rows.forEach((r, i) => {
+    if (narrow) {
+      L.push({ k: 'cols', cols: [String(i + 1), r.no, r.date], widths: W, aligns: A, bold: true });
+      L.push({ k: 'lr', left: `Amount: ${money(r.amount)}`, right: `Paid Amt: ${money(r.paid)}` });
+      L.push({ k: 'lr', left: `Credit Amt: ${money(r.credit)}`, right: `Balance Amt: ${money(r.balance)}` }, { k: 'gap' });
+    } else {
+      L.push({ k: 'cols', cols: [String(i + 1), r.no, r.date, money(r.amount)], widths: W, aligns: A });
+      L.push({ k: 'lr', left: `Paid Amt: ${money(r.paid)}`, right: `Balance Amt: ${money(r.balance)}` });
+      L.push({ k: 'text', text: `Credit Amt: ${money(r.credit)}` }, { k: 'gap' });
+    }
+  });
+  L.push({ k: 'rule' });
+  const ret = d.rows.filter((r) => r.isReturn).reduce((a, r) => a + r.paid, 0);
+  const balance = d.rows.filter((r) => !r.isReturn).reduce((a, r) => a + r.balance, 0);
+  if (ret) L.push({ k: 'lr', left: '', right: `SALES RETURN AMT : ${cur} ${money(ret)}`, bold: true });
+  L.push({ k: 'lr', left: '', right: `NET PAID AMT : ${cur} ${money(d.receipt.amount)}`, bold: true });
+  L.push({ k: 'lr', left: '', right: `NET BALANCE : ${cur} ${money(balance)}`, bold: true });
+  L.push({ k: 'rule' }, ...footer(true));
+  return L;
+}
+
+// ---------- renderers ----------
+/** widths are character widths for 32-column (58mm) paper; scaled up for 80mm. */
+function fitCols(cols: string[], widths: number[], aligns: Align[], total: number) {
+  const base = widths.reduce((a, b) => a + b, 0);
+  const chars = widths.map((w) => Math.max(1, Math.round((w * total) / base)));
+  chars[0] += total - chars.reduce((a, b) => a + b, 0);
+  return cols
+    .map((c, i) => {
+      const room = chars[i] - 1; // keep one space between columns
+      const t = c.length > room ? c.slice(0, room) : c;
+      return aligns[i] === 'right' ? t.padStart(chars[i]) : t.padEnd(chars[i]);
+    })
+    .join('');
+}
+
+function toEscPos(lines: PLine[]) {
+  const cols = paperWidth() === 80 ? 48 : 32;
+  const b = new Builder(cols);
+  for (const l of lines) {
+    if (l.k === 'gap') { for (let i = 0; i < (l.n ?? 1); i++) b.line(''); continue; }
+    if (l.k === 'rule') { b.align('left').line(l.dashed ? '- '.repeat(cols / 2) : '-'.repeat(cols)); continue; }
+    if (l.k === 'text') {
+      b.align(l.align ?? 'left').bold(!!l.bold).size(!!l.big);
+      const width = l.big ? Math.floor(cols / 2) : cols;
+      let cur = '';
+      for (const w of l.text.split(' ')) {
+        if ((cur + ' ' + w).trim().length > width) { b.line(cur); cur = w; } else cur = (cur + ' ' + w).trim();
+      }
+      b.line(cur).size(false).bold(false);
+      continue;
+    }
+    if (l.k === 'lr') { b.align('left').bold(!!l.bold).lr(l.left, l.right).bold(false); continue; }
+    b.align('left').bold(!!l.bold).line(fitCols(l.cols, l.widths, l.aligns, cols)).bold(false);
+  }
   return b.feedCut().bytes();
+}
+
+function toHtml(lines: PLine[], logo?: string) {
+  const w = paperWidth();
+  const esc = (x: unknown) => String(x ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!);
+  const body = lines
+    .map((l) => {
+      if (l.k === 'gap') return `<div style="height:${10 * (l.n ?? 1)}px"></div>`;
+      if (l.k === 'rule') return `<hr${l.dashed ? ' class=d' : ''}>`;
+      if (l.k === 'text') return `<div style="text-align:${l.align ?? 'left'};${l.bold ? 'font-weight:bold;' : ''}${l.big ? 'font-size:15px;' : ''}">${esc(l.text)}</div>`;
+      if (l.k === 'lr') return `<div class=lr${l.bold ? ' style="font-weight:bold"' : ''}><span>${esc(l.left)}</span><span>${esc(l.right)}</span></div>`;
+      return `<table${l.bold ? ' style="font-weight:bold"' : ''}><tr>${l.cols.map((c, i) => `<td style="width:${l.widths[i]}%;text-align:${l.aligns[i]}">${esc(c)}</td>`).join('')}</tr></table>`;
+    })
+    .join('\n');
+  return `<!doctype html><html><head><meta charset=utf-8><style>
+    @page{size:${w}mm auto;margin:2mm} *{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#000}
+    body{width:${w - 6}mm;margin:0} table{width:100%;border-collapse:collapse} td{padding:1px 0;vertical-align:top}
+    hr{border:0;border-top:1px solid #000;margin:4px 0} hr.d{border-top-style:dashed}
+    .lr{display:flex;justify-content:space-between;gap:6px}
+  </style></head><body>${logo ? `<div style="text-align:center"><img src="${esc(logo)}" style="max-width:55%;max-height:60px" onerror="this.remove()"></div>` : ''}${body}</body></html>`;
+}
+
+function printHtml(html: string) {
+  const f = document.createElement('iframe');
+  f.style.cssText = 'position:fixed;width:0;height:0;border:0;right:0;bottom:0';
+  document.body.appendChild(f);
+  f.contentWindow!.document.write(html);
+  f.contentWindow!.document.close();
+  setTimeout(() => {
+    f.contentWindow!.print();
+    setTimeout(() => f.remove(), 1500);
+  }, 300);
+}
+
+async function output(lines: PLine[], settings: Row | null) {
+  if (bluetoothSupported() && printerName()) return printBluetooth(toEscPos(lines));
+  printHtml(toHtml(lines, settings?.logo_url || `${location.origin}/logo.png`));
 }
 
 export async function printBluetooth(data: Uint8Array) {
@@ -151,37 +313,10 @@ export async function printBluetooth(data: Uint8Array) {
   }
 }
 
-/** Fallback: opens the system print dialog with a thermal-width layout. */
-export function printSystem(d: ReceiptData) {
-  const w = paperWidth();
-  const s = d.settings ?? {};
-  const esc = (x: unknown) => String(x ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!);
-  const rows = d.lines.map((l) => `<tr><td colspan=2>${esc(l.description)}</td></tr><tr><td>&nbsp;${qtyFmt(l.qty)} x ${money(l.price)}</td><td class=r>${money(l.line_total)}</td></tr>`).join('');
-  const html = `<!doctype html><html><head><meta charset=utf-8><style>@page{size:${w}mm auto;margin:2mm}*{font-family:monospace;font-size:12px}body{width:${w - 6}mm;margin:0}.c{text-align:center}.r{text-align:right}table{width:100%;border-collapse:collapse}hr{border:0;border-top:1px dashed #000}</style></head><body>
-  <div class=c><img src="${esc(s.logo_url || location.origin + '/logo.png')}" style="max-width:55%;max-height:70px" onerror="this.remove()"><br><b>${esc(s.company_name)}</b><br>${esc(s.address)}<br>${s.phone ? 'Tel: ' + esc(s.phone) : ''}</div><hr>
-  <div class=c><b>${d.title ?? docTitle(d.doc.type, s)}</b></div>
-  <div>${esc(d.doc.doc_no)} · ${dateTimeFmt(d.doc.doc_date)}<br>${d.customer ? 'Customer: ' + esc(d.customer.name) : ''}${d.salesman ? '<br>Salesman: ' + esc(d.salesman) : ''}</div><hr>
-  <table>${rows}</table><hr><table>
-  ${s.show_tax ? `<tr><td>Subtotal</td><td class=r>${money(d.doc.subtotal)}</td></tr><tr><td>${esc(s.tax_name)} ${Number(s.tax_rate ?? 0)}%</td><td class=r>${money(d.doc.tax)}</td></tr>` : ''}
-  <tr><td><b>TOTAL</b></td><td class=r><b>${esc(s.currency)} ${money(d.doc.total)}</b></td></tr></table>
-  ${d.note ? `<div>${esc(d.note)}</div>` : ''}
-  ${d.outstanding !== undefined ? `<hr><table><tr><td><b>TOTAL OUTSTANDING</b></td><td class=r><b>${esc(s.currency)} ${money(d.outstanding)}</b></td></tr></table><div style="font-size:10px">(all invoices less returns &amp; payments)</div>` : ''}<hr>
-  <div class=c>${esc(s.receipt_footer)}</div></body></html>`;
-  const f = document.createElement('iframe');
-  f.style.cssText = 'position:fixed;width:0;height:0;border:0;right:0;bottom:0';
-  document.body.appendChild(f);
-  f.contentWindow!.document.write(html);
-  f.contentWindow!.document.close();
-  setTimeout(() => { f.contentWindow!.print(); setTimeout(() => f.remove(), 1500); }, 250);
-}
-
-export async function printReceipt(d: ReceiptData) {
-  if (bluetoothSupported() && printerName()) {
-    await printBluetooth(buildReceipt(d));
-  } else {
-    printSystem(d);
-  }
-}
+/** Invoice / order / return printout. */
+export const printReceipt = (d: ReceiptData) => output(invoiceLayout(d), d.settings);
+/** Customer payment receipt printout. */
+export const printPaymentReceipt = (d: PaymentReceiptData) => output(paymentLayout(d), d.settings);
 
 // ---------- Customer statement ----------
 export interface StatementData {

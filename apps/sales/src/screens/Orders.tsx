@@ -101,7 +101,7 @@ export function OrderView() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('sales_docs')
-        .select('*, customer:customers(*), user:profiles(full_name), lines:sales_lines(*, product:products(code, image_url, uom:uoms(code))), allocations:receipt_allocations(amount, receipt:receipts(status, paymode:paymodes(name)))')
+        .select('*, customer:customers(*), user:profiles(full_name, username), lines:sales_lines(*, product:products(code, image_url, uom:uoms(code))), allocations:receipt_allocations(amount, receipt:receipts(status, paymode:paymodes(name)))')
         .eq('id', Number(id))
         .single();
       if (error) throw new Error(error.message);
@@ -121,6 +121,7 @@ export function OrderView() {
     doc: d,
     customer: d.customer,
     salesman: d.user?.full_name ?? profile?.full_name,
+    username: d.user?.username ?? profile?.username,
     lines: [...d.lines].sort((a: Row, b: Row) => a.line_no - b.line_no).map((l: Row) => ({ description: l.description, qty: l.qty, price: l.price, discount: Number(l.discount), line_total: l.line_total, uom: l.product?.uom?.code })),
     payments: d.allocations.filter((a: Row) => a.receipt.status === 'ACTIVE').map((a: Row) => ({ name: a.receipt.paymode.name, amount: a.amount })),
     outstanding: custBal === undefined || custBal === null ? undefined : Number(custBal),

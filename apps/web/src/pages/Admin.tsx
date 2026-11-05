@@ -354,6 +354,7 @@ export function Settings() {
         {f('phone', 'Phone')}
         {f('email', 'Email')}
         {f('website', 'Website')}
+        {f('reg_no', 'UEN / CO REG NO (printed on invoices)')}
         {f('tax_reg_no', 'GST registration no.')}
         <div className="md:col-span-2"><LogoUpload value={s.logo_url} onChange={(url) => setS({ ...s, logo_url: url })} /></div>
         {f('currency', 'Base currency')}

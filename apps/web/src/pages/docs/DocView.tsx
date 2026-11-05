@@ -6,7 +6,7 @@ import { ArrowRightLeft, Ban, HandCoins, Pencil, Printer } from 'lucide-react';
 import { supabase, rpc } from '../../lib/supabase';
 import { useSettings, type Row } from '../../lib/data';
 import { useAuth } from '../../lib/auth';
-import { dateFmt, money, qtyFmt } from '../../lib/format';
+import { dateFmt, dateTimeFmt, money, qtyFmt } from '../../lib/format';
 import { Badge, ErrorBox, Field, Loading, Modal, StatusBadge, useToast } from '../../components/ui';
 import { kindDef, type DocKind } from './config';
 
@@ -20,7 +20,8 @@ export function CompanyHeader({ settings, title, compact }: { settings?: Row; ti
         {!compact && (
           <div className="mt-1 space-y-0.5 text-xs text-ink-500">
             {settings?.address && <div className="whitespace-pre-line">{settings.address}</div>}
-            <div>{[settings?.phone, settings?.email, settings?.website].filter(Boolean).join(' · ')}</div>
+            <div>{[settings?.phone && `TEL : ${settings.phone}`, settings?.email, settings?.website].filter(Boolean).join(' · ')}</div>
+            {settings?.reg_no && <div>UEN No / CO REG NO: {settings.reg_no}</div>}
             {settings?.show_tax && settings?.tax_reg_no && <div>{settings?.tax_name} Reg. No: {settings.tax_reg_no}</div>}
           </div>
         )}
@@ -162,7 +163,7 @@ export default function DocView({ kind }: { kind: DocKind }) {
               <tbody>
                 {[
                   ['No.', doc.doc_no],
-                  ['Date', dateFmt(doc.doc_date)],
+                  ['Date', dateTimeFmt(doc.doc_date)],
                   doc.due_date && ['Due date', dateFmt(doc.due_date)],
                   doc.ref_no && [kind === 'purchase' ? 'Supplier ref' : 'Your ref', doc.ref_no],
                   doc.source && ['From', doc.source.doc_no],
