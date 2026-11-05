@@ -1,0 +1,15 @@
+node_modules/
+dist/
+build/
+.expo/
+web-build/
+*.log
+.env
+.env.*
+!.env.example
+*.db
+.claude/
+*.db-journal
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
