@@ -1,3 +1,4 @@
+import { BrandLogo } from '../components/Brand';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -139,7 +140,7 @@ export default function Pos() {
       {/* Top bar */}
       <header className="flex h-14 shrink-0 items-center gap-3 bg-ink-950 px-4 text-white">
         <Link to="/" className="rounded-lg p-1.5 text-ink-300 hover:bg-white/10 hover:text-white" title="Back to portal"><ArrowLeft size={18} /></Link>
-        <div className="font-display text-lg tracking-wide">amoka<span className="text-gold-300">.</span>pos</div>
+        <BrandLogo className="h-9" light /><span className="text-[10px] font-semibold uppercase tracking-[0.3em] text-gold-300">POS</span>
         <div className="ml-4 hidden flex-1 md:block"><div className="max-w-xl"><ProductPicker onPick={addProduct} locationId={locationId} autoFocus placeholder="Scan barcode or search… (Enter)" /></div></div>
         <div className="ml-auto flex items-center gap-1">
           <TopBtn icon={<List size={16} />} label="Invoices" onClick={() => setModal('invoices')} />
@@ -203,7 +204,7 @@ export default function Pos() {
               <span>Bill discount</span>
               <input type="number" min="0" step="any" className="input num w-24 py-1" value={billDiscount || ''} onChange={(e) => setBillDiscount(Number(e.target.value))} />
             </div>
-            <div className="flex justify-between text-ink-500"><span>{settings?.tax_name} {Number(settings?.tax_rate ?? 0)}%{taxCfg.taxInclusive ? ' (incl.)' : ''}</span><span className="tabular-nums">{money(totals.tax)}</span></div>
+            {settings?.show_tax && <div className="flex justify-between text-ink-500"><span>{settings?.tax_name} {Number(settings?.tax_rate ?? 0)}%{taxCfg.taxInclusive ? ' (incl.)' : ''}</span><span className="tabular-nums">{money(totals.tax)}</span></div>}
             <div className="flex items-end justify-between pt-1">
               <span className="text-xs font-semibold uppercase tracking-wider text-ink-400">Total</span>
               <span className="font-display text-3xl font-semibold tabular-nums text-ink-900">{money(totals.total)}</span>

@@ -128,8 +128,12 @@ export default function Cart() {
 
           <div className="card space-y-1.5 p-4 text-sm">
             <Row2 l="Items" r={`${cart.length} · qty ${cart.reduce((a, l) => a + l.qty, 0)}`} />
-            <Row2 l="Subtotal" r={money(totals.subtotal)} />
-            <Row2 l={`${settings?.tax_name ?? 'Tax'} ${Number(settings?.tax_rate ?? 0)}%${tax.taxInclusive ? ' (incl.)' : ''}`} r={money(totals.tax)} />
+            {settings?.show_tax && (
+              <>
+                <Row2 l="Subtotal" r={money(totals.subtotal)} />
+                <Row2 l={`${settings?.tax_name ?? 'Tax'} ${Number(settings?.tax_rate ?? 0)}%${tax.taxInclusive ? ' (incl.)' : ''}`} r={money(totals.tax)} />
+              </>
+            )}
             <div className="flex items-end justify-between border-t border-ink-100 pt-2">
               <span className="font-semibold">Total</span>
               <span className="font-display text-2xl font-semibold tabular-nums">{settings?.currency} {money(totals.total)}</span>

@@ -324,7 +324,7 @@ export function SalesReturn() {
         <label className="block"><span className="label">Notes</span><textarea className="input" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Batch no., expiry date, condition…" /></label>
 
         <div className="card flex items-center justify-between p-4">
-          <span className="text-sm text-ink-500">Credit to shop {settings?.tax_inclusive ? '' : `(incl. ${settings?.tax_name ?? 'tax'})`}</span>
+          <span className="text-sm text-ink-500">Credit to shop</span>
           <span className="font-display text-2xl font-semibold tabular-nums">{money(round2(total))}</span>
         </div>
         <button className="btn-gold w-full py-4 text-base" disabled={busy || !active.length || !reason} onClick={save}>

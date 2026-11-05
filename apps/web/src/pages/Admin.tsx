@@ -355,11 +355,12 @@ export function Settings() {
         {f('email', 'Email')}
         {f('website', 'Website')}
         {f('tax_reg_no', 'GST registration no.')}
-        {f('logo_url', 'Logo URL (shown on printouts)', 'text', 'md:col-span-2')}
+        <div className="md:col-span-2"><LogoUpload value={s.logo_url} onChange={(url) => setS({ ...s, logo_url: url })} /></div>
         {f('currency', 'Base currency')}
         {f('tax_name', 'Tax name')}
         {f('tax_rate', 'Tax rate %', 'number')}
         <label className="flex items-center gap-2 self-end pb-2 text-sm"><input type="checkbox" checked={!!s.tax_inclusive} onChange={(e) => setS({ ...s, tax_inclusive: e.target.checked })} /> Selling prices include tax</label>
+        <label className="flex items-center gap-2 text-sm md:col-span-2"><input type="checkbox" checked={!!s.show_tax} onChange={(e) => setS({ ...s, show_tax: e.target.checked })} /> Show GST separately on invoices &amp; receipts <span className="text-xs text-ink-400">(off = only the total is shown, title "INVOICE")</span></label>
         {f('receipt_footer', 'POS receipt footer', 'textarea', 'md:col-span-2')}
         {f('invoice_terms', 'Invoice terms & conditions', 'textarea', 'md:col-span-2')}
       </div>
@@ -607,6 +608,43 @@ export function PosSessions() {
       <Modal open={!!view} onClose={() => setView(null)} title={`Settlement #${view}`} footer={<button className="btn-secondary" onClick={() => window.print()}><Printer size={15} /> Print</button>}>
         {sum ? <SettlementReport sum={sum} /> : <Loading />}
       </Modal>
+    </div>
+  );
+}
+
+// =====================================================================
+// Logo upload (Settings)
+// =====================================================================
+function LogoUpload({ value, onChange }: { value: string | null; onChange: (url: string | null) => void }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  async function upload(file: File) {
+    setBusy(true);
+    try {
+      const ext = file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+      const path = `_brand/logo-${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from('product-images').upload(path, file, { contentType: file.type, upsert: false });
+      if (error) throw new Error(error.message);
+      onChange(supabase.storage.from('product-images').getPublicUrl(path).data.publicUrl);
+      toast('ok', 'Logo uploaded — click Save');
+    } catch (e) {
+      toast('err', (e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div>
+      <span className="label">Company logo (PNG with transparent background looks best)</span>
+      <div className="flex items-center gap-4 rounded-xl border border-dashed border-ink-200 p-3">
+        <div className="flex h-20 w-36 items-center justify-center rounded-lg bg-ink-950 p-2">
+          {value ? <img src={value} alt="" className="max-h-full max-w-full object-contain" /> : <span className="text-xs text-ink-400">No logo</span>}
+        </div>
+        <div className="flex gap-2">
+          <label className="btn-secondary cursor-pointer">{busy ? 'Uploading…' : 'Upload logo'}<input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])} /></label>
+          {value && <button type="button" className="btn-ghost text-rose-600" onClick={() => onChange(null)}>Remove</button>}
+        </div>
+      </div>
     </div>
   );
 }

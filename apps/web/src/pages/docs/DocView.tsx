@@ -1,3 +1,4 @@
+import { BrandLogo } from '../../components/Brand';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
@@ -11,20 +12,19 @@ import { kindDef, type DocKind } from './config';
 
 export function CompanyHeader({ settings, title, compact }: { settings?: Row; title: string; compact?: boolean }) {
   return (
-    <div className="flex items-start justify-between gap-6 border-b-2 border-ink-900 pb-5">
-      <div>
-        {settings?.logo_url ? (
-          <img src={settings.logo_url} alt="" className="mb-2 h-12" />
-        ) : (
-          <div className="font-display text-2xl font-bold tracking-wide text-ink-900">{settings?.company_name}</div>
-        )}
+    <div className="flex items-start justify-between gap-6 border-b-2 border-gold-500 pb-5">
+      <div className="flex items-start gap-4">
+        <BrandLogo className={compact ? "h-12" : "h-20"} />
+        <div>
+        <div className="font-display text-xl font-bold tracking-wide text-ink-900">{settings?.company_name}</div>
         {!compact && (
           <div className="mt-1 space-y-0.5 text-xs text-ink-500">
             {settings?.address && <div className="whitespace-pre-line">{settings.address}</div>}
             <div>{[settings?.phone, settings?.email, settings?.website].filter(Boolean).join(' · ')}</div>
-            {settings?.tax_reg_no && <div>{settings?.tax_name} Reg. No: {settings.tax_reg_no}</div>}
+            {settings?.show_tax && settings?.tax_reg_no && <div>{settings?.tax_name} Reg. No: {settings.tax_reg_no}</div>}
           </div>
         )}
+        </div>
       </div>
       <div className="text-right">
         <div className="font-display text-2xl font-semibold tracking-[0.15em] text-gold-600">{title}</div>
@@ -138,7 +138,7 @@ export default function DocView({ kind }: { kind: DocKind }) {
             <span className="rotate-[-20deg] font-display text-8xl font-bold text-rose-500/15">VOID</span>
           </div>
         )}
-        <CompanyHeader settings={settings} title={t.printTitle} />
+        <CompanyHeader settings={settings} title={t.printTitle === 'TAX INVOICE' && !settings?.show_tax ? 'INVOICE' : t.printTitle} />
 
         <div className="mt-6 grid grid-cols-2 gap-8 text-sm">
           <div>
@@ -222,8 +222,12 @@ export default function DocView({ kind }: { kind: DocKind }) {
           <div className="mt-6 flex justify-end">
             <div className="w-72 space-y-1.5 text-sm">
               {Number(doc.discount) > 0 && <div className="flex justify-between"><span className="text-ink-500">Discount</span><span className="tabular-nums">-{money(doc.discount)}</span></div>}
-              <div className="flex justify-between"><span className="text-ink-500">Subtotal</span><span className="tabular-nums">{money(doc.subtotal)}</span></div>
-              <div className="flex justify-between"><span className="text-ink-500">{settings?.tax_name} {Number(settings?.tax_rate)}%</span><span className="tabular-nums">{money(doc.tax)}</span></div>
+              {settings?.show_tax && (
+                <>
+                  <div className="flex justify-between"><span className="text-ink-500">Subtotal</span><span className="tabular-nums">{money(doc.subtotal)}</span></div>
+                  <div className="flex justify-between"><span className="text-ink-500">{settings?.tax_name} {Number(settings?.tax_rate)}%</span><span className="tabular-nums">{money(doc.tax)}</span></div>
+                </>
+              )}
               <div className="flex justify-between border-t-2 border-ink-900 pt-2 text-base font-bold text-ink-900">
                 <span>Total {settings?.currency}</span><span className="tabular-nums">{money(doc.total)}</span>
               </div>

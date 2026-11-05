@@ -1,3 +1,4 @@
+import { BrandLogo, GoldRule } from './Brand';
 import { useState, type ReactNode } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router';
 import {
@@ -207,15 +208,12 @@ export function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const sidebar = (
-    <aside className="flex h-full w-64 flex-col bg-ink-950 text-white">
-      <div className="flex items-center gap-3 px-5 py-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-gold-300 to-gold-600 font-display text-lg font-bold text-ink-950">
-          a
-        </div>
-        <div>
-          <div className="font-display text-lg leading-none tracking-wide">amoka.retail</div>
-          <div className="mt-1 text-[10px] uppercase tracking-[0.2em] text-gold-300/80">ERP · POS</div>
-        </div>
+    <aside className="relative flex h-full w-64 flex-col overflow-hidden bg-gradient-to-b from-ink-900 via-ink-950 to-ink-950 text-white">
+      <div className="pointer-events-none absolute -left-24 -top-24 h-64 w-64 rounded-full bg-gold-400/10 blur-3xl" />
+      <div className="relative flex flex-col items-center px-5 pb-4 pt-6">
+        <BrandLogo className="h-16" light />
+        <div className="mt-2 text-[10px] font-medium uppercase tracking-[0.35em] text-gold-300/80">ERP · POS</div>
+        <GoldRule className="mt-4 w-full" />
       </div>
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 pb-4">
         <NavLink

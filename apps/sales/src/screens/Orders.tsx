@@ -187,8 +187,12 @@ export function OrderView() {
           ))}
           <div className="space-y-1 px-4 py-3 text-sm">
             {Number(d.discount) > 0 && <div className="flex justify-between text-ink-500"><span>Discount</span><span>-{money(d.discount)}</span></div>}
-            <div className="flex justify-between text-ink-500"><span>Subtotal</span><span className="tabular-nums">{money(d.subtotal)}</span></div>
-            <div className="flex justify-between text-ink-500"><span>{settings?.tax_name}</span><span className="tabular-nums">{money(d.tax)}</span></div>
+            {settings?.show_tax && (
+              <>
+                <div className="flex justify-between text-ink-500"><span>Subtotal</span><span className="tabular-nums">{money(d.subtotal)}</span></div>
+                <div className="flex justify-between text-ink-500"><span>{settings?.tax_name}</span><span className="tabular-nums">{money(d.tax)}</span></div>
+              </>
+            )}
             <div className="flex justify-between text-base font-semibold"><span>Total</span><span className="tabular-nums">{settings?.currency} {money(d.total)}</span></div>
             {d.type === 'INVOICE' && (
               <>

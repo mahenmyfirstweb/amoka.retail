@@ -1,3 +1,4 @@
+import { BrandLogo, GoldRule } from '../components/Brand';
 import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router';
 import { Loader2 } from 'lucide-react';
@@ -40,20 +41,18 @@ export default function Login() {
   return (
     <div className="grid min-h-screen lg:grid-cols-[1.2fr_1fr]">
       <div className="relative hidden overflow-hidden bg-ink-950 lg:block">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(212,171,90,0.25),transparent_55%),radial-gradient(circle_at_80%_90%,rgba(212,171,90,0.12),transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_15%,rgba(234,168,58,0.28),transparent_55%),radial-gradient(circle_at_85%_95%,rgba(122,59,37,0.55),transparent_55%)]" />
+        <div className="absolute inset-0 opacity-[0.06] [background-image:repeating-linear-gradient(45deg,#fff_0,#fff_1px,transparent_1px,transparent_14px)]" />
         <div className="relative flex h-full flex-col justify-between p-14 text-white">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-gold-300 to-gold-600 font-display text-xl font-bold text-ink-950">
-              a
-            </div>
-            <span className="font-display text-2xl tracking-wide">amoka.retail</span>
-          </div>
+          <div className="text-[11px] font-medium uppercase tracking-[0.4em] text-gold-300/80">amoka.retail · ERP & POS</div>
           <div>
-            <h1 className="max-w-md font-display text-5xl leading-tight">
-              Retail, run <span className="text-gold-300">beautifully</span>.
+            <BrandLogo className="mb-10 h-40 drop-shadow-[0_20px_40px_rgba(0,0,0,0.45)]" light />
+            <h1 className="max-w-lg font-display text-5xl leading-[1.1]">
+              Tasty, healthy — and <span className="bg-gradient-to-r from-gold-200 to-gold-400 bg-clip-text text-transparent">beautifully run</span>.
             </h1>
-            <p className="mt-5 max-w-md text-ink-300">
-              Point of sale, inventory, purchasing, sales and accounts — one elegant platform for every outlet and every
+            <GoldRule className="my-6 max-w-sm" />
+            <p className="max-w-md text-ink-300">
+              Point of sale, inventory, purchasing, sales and accounts — one refined platform for every outlet and every
               salesman on the road.
             </p>
           </div>
@@ -61,10 +60,10 @@ export default function Login() {
         </div>
       </div>
 
-      <div className="flex items-center justify-center bg-white p-6">
-        <form onSubmit={submit} className="w-full max-w-sm space-y-5">
+      <div className="flex items-center justify-center bg-ink-50 p-6">
+        <form onSubmit={submit} className="card w-full max-w-sm space-y-5 p-8">
           <div>
-            <div className="mb-8 font-display text-2xl lg:hidden">amoka.retail</div>
+            <div className="mb-6 flex justify-center lg:hidden"><BrandLogo className="h-20" /></div>
             <h2 className="font-display text-3xl text-ink-900">Welcome back</h2>
             <p className="mt-1 text-sm text-ink-400">Sign in to the back-office portal</p>
           </div>

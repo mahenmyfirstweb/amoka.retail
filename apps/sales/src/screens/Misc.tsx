@@ -1,3 +1,4 @@
+import { BrandLogo } from '../Brand';
 import { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
@@ -33,8 +34,9 @@ export function Home() {
   const hour = new Date().getHours();
   return (
     <div className="pb-6">
-      <div className="bg-ink-950 px-5 pb-8 pt-6 text-white safe-top">
-        <div className="text-xs uppercase tracking-[0.25em] text-gold-300">amoka.retail</div>
+      <div className="relative overflow-hidden bg-gradient-to-br from-ink-800 via-ink-900 to-ink-950 px-5 pb-8 pt-6 text-white safe-top">
+        <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-gold-400/20 blur-3xl" />
+        <div className="flex items-center justify-between"><div className="text-[11px] uppercase tracking-[0.3em] text-gold-300">amoka.retail · Sales</div><BrandLogo className="h-14" light /></div>
         <h1 className="mt-2 font-display text-3xl">Good {hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening'},<br />{profile?.full_name?.split(' ')[0]}</h1>
         <div className="mt-1 text-sm text-ink-400">{profile?.location?.name ?? 'No location set'}</div>
         <div className="mt-5 grid grid-cols-2 gap-3">
@@ -155,12 +157,11 @@ export function Login() {
   const blocked = ready && session && profile && (!profile.is_active || !permissions.has('mobile_app'));
 
   return (
-    <div className="flex min-h-full flex-col bg-ink-950 px-6 text-white safe-top">
+    <div className="flex min-h-full flex-col bg-ink-950 bg-[radial-gradient(circle_at_30%_10%,rgba(234,168,58,0.25),transparent_55%),radial-gradient(circle_at_90%_100%,rgba(122,59,37,0.6),transparent_55%)] px-6 text-white safe-top">
       <div className="flex flex-1 flex-col justify-center">
         <div className="mx-auto w-full max-w-sm">
           <div className="mb-10 text-center">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-gold-300 to-gold-600 font-display text-3xl font-bold text-ink-950">a</div>
-            <div className="font-display text-3xl">amoka.retail</div>
+            <BrandLogo className="mx-auto mb-5 h-32 drop-shadow-[0_16px_36px_rgba(0,0,0,0.5)]" light />
             <div className="mt-1 text-xs uppercase tracking-[0.3em] text-gold-300">Sales</div>
           </div>
           <form className="space-y-4" onSubmit={async (e) => {

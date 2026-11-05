@@ -114,7 +114,7 @@ export default function DocEditor({ kind }: { kind: DocKind }) {
   }, [t, party, id, sp, def]);
 
   const taxCfg = useMemo(
-    () => ({ taxRate: Number(settings?.tax_rate ?? 0), taxInclusive: kind === 'sales' ? !!settings?.tax_inclusive : false }),
+    () => ({ taxRate: Number(settings?.tax_rate ?? 0), taxInclusive: kind === 'sales' || settings?.tax_inclusive ? !!settings?.tax_inclusive : false }),
     [settings, kind],
   );
   const totals = computeTotals(lines, discount, taxCfg);
@@ -289,11 +289,15 @@ export default function DocEditor({ kind }: { kind: DocKind }) {
                 <span className="text-ink-500">Discount</span>
                 <input type="number" step="any" min="0" className="input num w-32 py-1.5" value={discount} onChange={(e) => setDiscount(Number(e.target.value))} />
               </div>
-              <div className="flex justify-between"><span className="text-ink-500">Subtotal</span><span className="tabular-nums">{money(totals.subtotal)}</span></div>
-              <div className="flex justify-between">
-                <span className="text-ink-500">{settings?.tax_name ?? 'Tax'} {Number(settings?.tax_rate ?? 0)}%{taxCfg.taxInclusive ? ' (incl.)' : ''}</span>
-                <span className="tabular-nums">{money(totals.tax)}</span>
-              </div>
+              {settings?.show_tax && (
+                <>
+                  <div className="flex justify-between"><span className="text-ink-500">Subtotal</span><span className="tabular-nums">{money(totals.subtotal)}</span></div>
+                  <div className="flex justify-between">
+                    <span className="text-ink-500">{settings?.tax_name ?? 'Tax'} {Number(settings?.tax_rate ?? 0)}%{taxCfg.taxInclusive ? ' (incl.)' : ''}</span>
+                    <span className="tabular-nums">{money(totals.tax)}</span>
+                  </div>
+                </>
+              )}
               <div className="flex justify-between border-t border-ink-100 pt-2 text-lg font-semibold text-ink-900">
                 <span>Total</span><span className="tabular-nums">{settings?.currency} {money(totals.total)}</span>
               </div>

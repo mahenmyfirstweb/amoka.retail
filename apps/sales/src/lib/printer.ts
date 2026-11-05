@@ -96,6 +96,7 @@ export interface ReceiptData {
 }
 
 const TITLES: Record<string, string> = { ORDER: 'SALES ORDER', INVOICE: 'TAX INVOICE', QUOTE: 'QUOTATION', RETURN: 'CREDIT NOTE', DELIVERY: 'DELIVERY ORDER', RECEIPT: 'OFFICIAL RECEIPT' };
+const docTitle =(type: string, s: Row) => (type === 'INVOICE' && !s.show_tax ? 'INVOICE' : TITLES[type] ?? type);
 
 export function buildReceipt(d: ReceiptData) {
   const cols = paperWidth() === 80 ? 48 : 32;
@@ -104,8 +105,8 @@ export function buildReceipt(d: ReceiptData) {
   b.align('center').bold(true).size(true).line(String(s.company_name ?? '').slice(0, cols / 2)).size(false).bold(false);
   if (s.address) b.line(String(s.address).replace(/\n/g, ' '));
   if (s.phone) b.line(`Tel: ${s.phone}`);
-  if (s.tax_reg_no) b.line(`${s.tax_name} Reg: ${s.tax_reg_no}`);
-  b.rule().bold(true).line(d.title ?? TITLES[d.doc.type] ?? d.doc.type).bold(false).align('left');
+  if (s.show_tax && s.tax_reg_no) b.line(`${s.tax_name} Reg: ${s.tax_reg_no}`);
+  b.rule().bold(true).line(d.title ?? docTitle(d.doc.type, s)).bold(false).align('left');
   b.lr(d.doc.doc_no, dateTimeFmt(d.doc.doc_date));
   if (d.customer) {
     b.line(`Customer: ${d.customer.name}`);
@@ -120,8 +121,10 @@ export function buildReceipt(d: ReceiptData) {
   }
   b.rule();
   if (Number(d.doc.discount)) b.lr('Discount', `-${money(d.doc.discount)}`);
-  b.lr('Subtotal', money(d.doc.subtotal));
-  b.lr(`${s.tax_name ?? 'Tax'} ${Number(s.tax_rate ?? 0)}%`, money(d.doc.tax));
+  if (s.show_tax) {
+    b.lr('Subtotal', money(d.doc.subtotal));
+    b.lr(`${s.tax_name ?? 'Tax'} ${Number(s.tax_rate ?? 0)}%`, money(d.doc.tax));
+  }
   b.bold(true).size(cols >= 48).lr('TOTAL', `${s.currency ?? ''} ${money(d.doc.total)}`).size(false).bold(false);
   for (const p of d.payments ?? []) b.lr(`Paid (${p.name})`, money(p.amount));
   const bal = Number(d.doc.total) - Number(d.doc.paid ?? 0) - Number(d.doc.credited ?? 0);
@@ -155,11 +158,11 @@ export function printSystem(d: ReceiptData) {
   const esc = (x: unknown) => String(x ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!);
   const rows = d.lines.map((l) => `<tr><td colspan=2>${esc(l.description)}</td></tr><tr><td>&nbsp;${qtyFmt(l.qty)} x ${money(l.price)}</td><td class=r>${money(l.line_total)}</td></tr>`).join('');
   const html = `<!doctype html><html><head><meta charset=utf-8><style>@page{size:${w}mm auto;margin:2mm}*{font-family:monospace;font-size:12px}body{width:${w - 6}mm;margin:0}.c{text-align:center}.r{text-align:right}table{width:100%;border-collapse:collapse}hr{border:0;border-top:1px dashed #000}</style></head><body>
-  <div class=c><b>${esc(s.company_name)}</b><br>${esc(s.address)}<br>${s.phone ? 'Tel: ' + esc(s.phone) : ''}</div><hr>
-  <div class=c><b>${d.title ?? TITLES[d.doc.type] ?? d.doc.type}</b></div>
+  <div class=c><img src="${esc(s.logo_url || location.origin + '/logo.png')}" style="max-width:55%;max-height:70px" onerror="this.remove()"><br><b>${esc(s.company_name)}</b><br>${esc(s.address)}<br>${s.phone ? 'Tel: ' + esc(s.phone) : ''}</div><hr>
+  <div class=c><b>${d.title ?? docTitle(d.doc.type, s)}</b></div>
   <div>${esc(d.doc.doc_no)} · ${dateTimeFmt(d.doc.doc_date)}<br>${d.customer ? 'Customer: ' + esc(d.customer.name) : ''}${d.salesman ? '<br>Salesman: ' + esc(d.salesman) : ''}</div><hr>
   <table>${rows}</table><hr><table>
-  <tr><td>Subtotal</td><td class=r>${money(d.doc.subtotal)}</td></tr><tr><td>${esc(s.tax_name)} ${Number(s.tax_rate ?? 0)}%</td><td class=r>${money(d.doc.tax)}</td></tr>
+  ${s.show_tax ? `<tr><td>Subtotal</td><td class=r>${money(d.doc.subtotal)}</td></tr><tr><td>${esc(s.tax_name)} ${Number(s.tax_rate ?? 0)}%</td><td class=r>${money(d.doc.tax)}</td></tr>` : ''}
   <tr><td><b>TOTAL</b></td><td class=r><b>${esc(s.currency)} ${money(d.doc.total)}</b></td></tr></table>
   ${d.note ? `<div>${esc(d.note)}</div>` : ''}
   ${d.outstanding !== undefined ? `<hr><table><tr><td><b>TOTAL OUTSTANDING</b></td><td class=r><b>${esc(s.currency)} ${money(d.outstanding)}</b></td></tr></table><div style="font-size:10px">(all invoices less returns &amp; payments)</div>` : ''}<hr>

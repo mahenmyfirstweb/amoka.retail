@@ -1,3 +1,4 @@
+import { BrandLogo } from '../components/Brand';
 import { Link } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, CalendarDays, Clock4, Package, ShoppingBag, TrendingUp, Truck, Wallet } from 'lucide-react';
@@ -49,10 +50,18 @@ export default function Dashboard() {
   if (isLoading || !d) return <Loading />;
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={`Good ${hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening'}, ${profile?.full_name?.split(' ')[0] ?? ''}`}
-        subtitle={new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-      />
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-ink-800 via-ink-900 to-ink-950 p-8 text-white shadow-xl">
+        <div className="pointer-events-none absolute -right-16 -top-20 h-72 w-72 rounded-full bg-gold-400/20 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 left-1/3 h-64 w-64 rounded-full bg-cocoa/50 blur-3xl" />
+        <div className="relative flex flex-wrap items-center justify-between gap-6">
+          <div>
+            <div className="text-[11px] font-medium uppercase tracking-[0.35em] text-gold-300/90">{new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</div>
+            <h1 className="mt-2 font-display text-4xl">Good {hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening'}, {profile?.full_name?.split(' ')[0] ?? ''}</h1>
+            <p className="mt-2 text-sm text-ink-300">Today's sales <span className="font-semibold text-gold-200">{cur} {money(d.sales.today)}</span> · {d.sales.today_count} invoices</p>
+          </div>
+          <BrandLogo className="h-24 drop-shadow-[0_12px_30px_rgba(0,0,0,0.5)]" light />
+        </div>
+      </div>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label="Sales today" value={`${cur} ${money(d.sales.today)}`} sub={`${d.sales.today_count} invoices`} icon={<ShoppingBag size={18} />} />
         <Stat label="This week" value={`${cur} ${money(d.sales.week)}`} icon={<CalendarDays size={18} />} />
