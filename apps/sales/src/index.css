@@ -1,0 +1,61 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap');
+@import 'tailwindcss';
+
+/* amoka.retail theme: deep navy + champagne gold */
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Playfair Display', Georgia, serif;
+
+  --color-ink-50: #f5f7fb;
+  --color-ink-100: #e9edf5;
+  --color-ink-200: #cfd6e4;
+  --color-ink-300: #a5b0c6;
+  --color-ink-400: #74819c;
+  --color-ink-500: #4f5b75;
+  --color-ink-600: #39445c;
+  --color-ink-700: #263049;
+  --color-ink-800: #172036;
+  --color-ink-900: #0e1527;
+  --color-ink-950: #080d1a;
+
+  --color-gold-50: #fbf7ee;
+  --color-gold-100: #f5ecd5;
+  --color-gold-200: #ead6a8;
+  --color-gold-300: #dfbf7a;
+  --color-gold-400: #d4ab5a;
+  --color-gold-500: #bf8f45;
+  --color-gold-600: #a97c36;
+  --color-gold-700: #86602c;
+}
+
+
+@layer base {
+  html, body, #root { height: 100%; }
+  body {
+    @apply bg-ink-50 font-sans text-ink-800 antialiased;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: none;
+  }
+}
+
+@utility btn {
+  @apply inline-flex cursor-pointer select-none items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition
+    active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+@layer components {
+  .btn-primary { @apply btn bg-ink-900 text-white shadow-sm; }
+  .btn-gold { @apply btn bg-gradient-to-r from-gold-400 to-gold-300 text-ink-950 shadow; }
+  .btn-secondary { @apply btn border border-ink-200 bg-white text-ink-700; }
+  .btn-ghost { @apply btn text-ink-600; }
+  .input {
+    @apply w-full rounded-xl border border-ink-200 bg-white px-3.5 py-3 text-[15px] text-ink-900 outline-none
+      placeholder:text-ink-300 focus:border-gold-400 focus:ring-2 focus:ring-gold-100;
+  }
+  .label { @apply mb-1 block text-xs font-medium text-ink-500; }
+  .card { @apply rounded-2xl border border-ink-100 bg-white shadow-[0_1px_2px_rgba(14,21,39,0.04),0_8px_24px_-14px_rgba(14,21,39,0.12)]; }
+  .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+  .safe-top { padding-top: env(safe-area-inset-top); }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { scrollbar-width: none; }
+}

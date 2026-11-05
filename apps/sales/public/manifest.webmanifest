@@ -1,0 +1,15 @@
+{
+  "name": "amoka.retail Sales",
+  "short_name": "amoka sales",
+  "description": "Catalog and order taking for amoka.retail salesmen",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#080d1a",
+  "theme_color": "#080d1a",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

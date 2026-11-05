@@ -4,11 +4,13 @@
   "version": "0.1.0",
   "description": "amoka.retail ERP & POS - admin/accounts web portal + salesman mobile app, powered by Supabase",
   "workspaces": [
-    "apps/web"
+    "apps/web",
+    "apps/sales"
   ],
   "scripts": {
     "dev": "npm run dev -w @amoka/web",
-    "build": "npm run build -w @amoka/web",
+    "dev:sales": "npm run dev -w @amoka/sales",
+    "build": "npm run build -w @amoka/web && npm run build -w @amoka/sales",
     "typecheck": "npm run typecheck -w @amoka/web"
   }
 }

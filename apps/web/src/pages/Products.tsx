@@ -5,6 +5,7 @@ import { useAuth } from '../lib/auth';
 import { dateTimeFmt, money, qtyFmt } from '../lib/format';
 import { Badge, Empty, ErrorBox, Loading, Modal, PageHeader, Pager, SearchInput, Tabs, useToast } from '../components/ui';
 import { RecordForm } from './MasterPage';
+import { ProductImages } from '../components/ProductImages';
 
 const PAGE = 50;
 
@@ -21,7 +22,7 @@ const productFields = [
   { key: 'sell_price', label: 'Retail price', type: 'number' as const },
   { key: 'wholesale_price', label: 'Wholesale price', type: 'number' as const },
   { key: 'min_stock', label: 'Minimum stock (alert)', type: 'number' as const },
-  { key: 'image_url', label: 'Image URL', span: 2 as const },
+  { key: 'image_url', label: 'Main photo URL (or upload above)', span: 2 as const },
   { key: 'taxable', label: 'Taxable (GST)', type: 'bool' as const },
   { key: 'track_stock', label: 'Track stock', type: 'bool' as const },
   { key: 'is_active', label: 'Active', type: 'bool' as const },
@@ -233,6 +234,7 @@ export default function Products() {
         {editing && (
           <>
             <form id="product-form" onSubmit={submit}>
+              <ProductImages product={editing} editable={can('products')} onMainChange={(url) => setEditing({ ...editing, image_url: url })} />
               <fieldset disabled={!can('products')}>
                 <RecordForm fields={productFields} value={editing} onChange={setEditing} />
               </fieldset>
