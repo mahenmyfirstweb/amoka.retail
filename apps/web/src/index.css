@@ -1,43 +1,87 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap');
 @import 'tailwindcss';
 
-@layer components {
-  .btn {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium transition
-      disabled:cursor-not-allowed disabled:opacity-50;
+/* amoka.retail theme: deep navy + champagne gold */
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Playfair Display', Georgia, serif;
+
+  --color-ink-50: #f5f7fb;
+  --color-ink-100: #e9edf5;
+  --color-ink-200: #cfd6e4;
+  --color-ink-300: #a5b0c6;
+  --color-ink-400: #74819c;
+  --color-ink-500: #4f5b75;
+  --color-ink-600: #39445c;
+  --color-ink-700: #263049;
+  --color-ink-800: #172036;
+  --color-ink-900: #0e1527;
+  --color-ink-950: #080d1a;
+
+  --color-gold-50: #fbf7ee;
+  --color-gold-100: #f5ecd5;
+  --color-gold-200: #ead6a8;
+  --color-gold-300: #dfbf7a;
+  --color-gold-400: #d4ab5a;
+  --color-gold-500: #bf8f45;
+  --color-gold-600: #a97c36;
+  --color-gold-700: #86602c;
+}
+
+@layer base {
+  body {
+    @apply bg-ink-50 font-sans text-ink-800 antialiased;
   }
+}
+
+@utility btn {
+    @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium transition
+      disabled:cursor-not-allowed disabled:opacity-50;
+}
+
+@layer components {
   .btn-primary {
-    @apply btn bg-indigo-600 text-white hover:bg-indigo-700;
+    @apply btn bg-ink-900 text-white shadow-sm hover:bg-ink-800;
+  }
+  .btn-gold {
+    @apply btn bg-gold-400 text-ink-950 shadow-sm hover:bg-gold-300;
   }
   .btn-secondary {
-    @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-50;
+    @apply btn border border-ink-200 bg-white text-ink-700 hover:bg-ink-50;
   }
   .btn-danger {
     @apply btn bg-rose-600 text-white hover:bg-rose-700;
   }
   .btn-ghost {
-    @apply btn text-slate-600 hover:bg-slate-100;
+    @apply btn text-ink-600 hover:bg-ink-100;
+  }
+  .btn-sm {
+    @apply px-2.5 py-1.5 text-xs;
   }
   .input {
-    @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none
-      focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 disabled:bg-slate-100;
+    @apply w-full rounded-lg border border-ink-200 bg-white px-3 py-2 text-sm text-ink-900 outline-none transition
+      placeholder:text-ink-300 focus:border-gold-400 focus:ring-2 focus:ring-gold-100 disabled:bg-ink-50 disabled:text-ink-500;
   }
   .label {
-    @apply mb-1 block text-xs font-medium text-slate-600;
+    @apply mb-1 block text-xs font-medium tracking-wide text-ink-500;
   }
   .card {
-    @apply rounded-xl border border-slate-200 bg-white shadow-sm;
+    @apply rounded-2xl border border-ink-100 bg-white shadow-[0_1px_2px_rgba(14,21,39,0.04),0_8px_24px_-12px_rgba(14,21,39,0.08)];
   }
   .table {
     @apply w-full text-left text-sm;
   }
   .table th {
-    @apply border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500;
+    @apply whitespace-nowrap border-b border-ink-100 bg-ink-50/70 px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-ink-400;
   }
   .table td {
-    @apply border-b border-slate-100 px-3 py-2;
+    @apply border-b border-ink-50 px-3 py-2.5;
   }
   .table tbody tr {
-    @apply hover:bg-slate-50;
+    @apply transition hover:bg-gold-50/40;
+  }
+  .num {
+    @apply text-right tabular-nums;
   }
 }
 
@@ -46,10 +90,15 @@
     display: none !important;
   }
   body {
-    background: white;
+    background: white !important;
   }
   .print-area {
     box-shadow: none !important;
     border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  @page {
+    margin: 12mm;
   }
 }
