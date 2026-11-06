@@ -45,7 +45,7 @@ function header(s: Row): PLine[] {
 }
 
 function footer(goods: boolean): PLine[] {
-  const out: PLine[] = [{ k: 'gap' }, { k: 'text', text: 'Customer Signature & Company Stamp' }, { k: 'gap', n: 4 }];
+  const out: PLine[] = [{ k: 'gap' }, { k: 'text', text: 'Customer Signature & Company Stamp' }, { k: 'gap', n: 9 }];
   if (goods) out.push({ k: 'rule', dashed: true }, { k: 'text', text: 'RECEIVED ABOVE GOODS IN GOOD ORDER AND CONDITION', align: 'center' }, { k: 'rule', dashed: true });
   return out;
 }
