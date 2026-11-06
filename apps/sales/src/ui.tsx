@@ -4,6 +4,7 @@ import { AlertCircle, CheckCircle2, ChevronLeft, ClipboardList, FileDown, Home, 
 import { useStore, type Row } from './lib/store';
 import { price } from './lib/format';
 import { daysSince, overdueAge } from '../../../packages/shared/receipts';
+import { startTracking, stopTracking } from './lib/location';
 
 // ---------- toast ----------
 const ToastCtx = createContext<(kind: 'ok' | 'err', text: string) => void>(() => {});
@@ -140,7 +141,13 @@ const TABS = [
 ];
 
 export function AppShell() {
-  const { cart, online, pending } = useStore();
+  const { cart, online, pending, profile, settings } = useStore();
+  // Share location for the admin Live Map while the app is open (company setting).
+  useEffect(() => {
+    if (!profile?.id || settings?.track_location === false) return;
+    startTracking(profile.id);
+    return () => stopTracking();
+  }, [profile?.id, settings?.track_location]);
   const loc = useLocation();
   const count = cart.length;
   const total = cart.reduce((s, l) => s + l.qty * l.price - l.discount, 0);

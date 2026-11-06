@@ -1,4 +1,5 @@
 /** Diesel / fuel top-ups per vehicle with proof photo; optional refund claim when paid with own money. */
+import { logEvent } from '../lib/location';
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Camera, Fuel as FuelIcon, Image as ImageIcon, Plus } from 'lucide-react';
@@ -140,6 +141,7 @@ export function FuelForm({ init, vehicles, onClose, onSaved }: { init: Row; vehi
         receipt_path: path, notes: f.notes?.trim() || null, claim_id,
       });
       if (error) throw new Error(error.message);
+      logEvent('FUEL');
       onSaved();
     } catch (e) {
       toast('err', (e as Error).message);

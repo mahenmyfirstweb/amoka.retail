@@ -108,11 +108,11 @@ export const MENU: Group[] = [
   {
     label: 'Stock Update',
     icon: <Boxes size={17} />,
-    need: 'stock',
     items: [
-      { to: '/stock/ADJUST', label: 'Stock Adjustment' },
-      { to: '/stock/STOCKTAKE', label: 'Stock Take' },
-      { to: '/stock/movements', label: 'Stock Movements' },
+      { to: '/intake', label: 'Stock Intake (Export)', need: 'stock_intake' },
+      { to: '/stock/ADJUST', label: 'Stock Adjustment', need: 'stock' },
+      { to: '/stock/STOCKTAKE', label: 'Stock Take', need: 'stock' },
+      { to: '/stock/movements', label: 'Stock Movements', need: 'stock' },
     ],
   },
   {
@@ -155,6 +155,7 @@ export const MENU: Group[] = [
       { to: '/reports/sales', label: 'Sales Report' },
       { to: '/reports/receipts', label: 'Receipt Report' },
       { to: '/reports/fuel', label: 'Diesel / Fuel Report' },
+      { to: '/live-map', label: 'Live Map (Salesmen)', need: 'track_staff' },
       { to: '/products/stock', label: 'Product Stock Report' },
       { to: '/statement', label: 'Customer Statement' },
       { to: '/reports/profit', label: 'Profit Analysis' },
@@ -207,6 +208,7 @@ function NavGroup({ g, onNavigate }: { g: Group; onNavigate: () => void }) {
 
 export function Layout() {
   const { profile, can, signOut, locationId, setLocationId } = useAuth();
+  const exporter = profile?.role === 'EXPORTER';
   const { data: locations } = useLookup('locations');
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -229,7 +231,7 @@ export function Layout() {
             }`
           }
         >
-          <LayoutDashboard size={17} /> Dashboard
+          <LayoutDashboard size={17} /> {exporter ? 'Home' : 'Dashboard'}
         </NavLink>
         {can('pos') && (
           <NavLink
@@ -239,7 +241,7 @@ export function Layout() {
             <MonitorSmartphone size={17} /> Web POS
           </NavLink>
         )}
-        {MENU.filter((g) => !g.need || can(g.need)).map((g) => (
+        {MENU.filter((g) => (!g.need || can(g.need)) && (!exporter || g.label === 'Stock Update')).map((g) => (
           <NavGroup key={g.label} g={g} onNavigate={() => setMobileOpen(false)} />
         ))}
       </nav>

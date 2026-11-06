@@ -10,7 +10,7 @@ import { bluetoothSupported, connectPrinter, paperWidth, printReceipt, printerNa
 import { TopBar, useToast } from '../ui';
 
 export function Home() {
-  const { profile, customer, pending, online, products, customers, lastSync } = useStore();
+  const { profile, customer, pending, online, products, customers, lastSync, settings } = useStore();
   const nav = useNavigate();
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -60,6 +60,7 @@ export function Home() {
           <Tile icon={<FuelIcon size={22} />} title="Diesel top-up" sub="Litres, time & proof" onClick={() => nav('/fuel')} />
         </div>
         <div className="px-4 text-center text-xs text-ink-400">{lastSync ? `Catalog updated ${dateTimeFmt(lastSync)}` : 'Catalog not downloaded yet'}</div>
+        {settings?.track_location !== false && <div className="mt-1 px-4 text-center text-[11px] text-ink-400">📍 Location sharing is on while the app is open (for the office live map)</div>}
       </div>
     </div>
   );

@@ -14,7 +14,9 @@ import DocList from './pages/docs/DocList';
 import DocEditor from './pages/docs/DocEditor';
 import DocView from './pages/docs/DocView';
 import { PaymentList, PaymentNew, PaymentView } from './pages/Payments';
-import { StockList, StockNew, StockView } from './pages/Stock';
+import { StockAdjustNew, StockList, StockNew, StockView } from './pages/Stock';
+import { IntakeEdit, IntakeList, IntakeView } from './pages/Intake';
+import LiveMap from './pages/LiveMap';
 import Pos from './pages/Pos';
 import { AgingReport, CustomerStatement, SalesReport } from './pages/Reports';
 import { CustomerOutstandingReport, ReceiptReport } from './pages/Reports2';
@@ -48,6 +50,12 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false, retry: 1, staleTime: 10_000 } },
 });
 
+/** Exporters land on stock intake; everyone else on the dashboard. */
+function HomeOrIntake() {
+  const { profile } = useAuth();
+  return profile?.role === 'EXPORTER' ? <Navigate to="/intake" replace /> : <Dashboard />;
+}
+
 function RequireAuth() {
   const { loading, session, profile, can, signOut } = useAuth();
   if (loading) return <div className="flex h-screen items-center justify-center"><Loading /></div>;
@@ -76,7 +84,12 @@ createRoot(document.getElementById('root')!).render(
               <Route element={<RequireAuth />}>
                 <Route path="/pos" element={<Pos />} />
                 <Route element={<Layout />}>
-                  <Route index element={<Dashboard />} />
+                  <Route index element={<HomeOrIntake />} />
+                  <Route path="intake" element={<IntakeList />} />
+                  <Route path="intake/new" element={<IntakeEdit />} />
+                  <Route path="intake/:id" element={<IntakeView />} />
+                  <Route path="intake/:id/edit" element={<IntakeEdit />} />
+                  <Route path="live-map" element={<LiveMap />} />
                   <Route path="m/:entity" element={<MasterPage />} />
                   <Route path="settings" element={<Settings />} />
                   <Route path="account" element={<Account />} />
@@ -109,7 +122,7 @@ createRoot(document.getElementById('root')!).render(
 
                   <Route path="stock/movements" element={<StockMovements />} />
                   <Route path="stock/ADJUST" element={<StockList kind="ADJUST" />} />
-                  <Route path="stock/ADJUST/new" element={<StockNew kind="ADJUST" />} />
+                  <Route path="stock/ADJUST/new" element={<StockAdjustNew />} />
                   <Route path="stock/ADJUST/:id" element={<StockView kind="ADJUST" />} />
                   <Route path="stock/STOCKTAKE" element={<StockList kind="STOCKTAKE" />} />
                   <Route path="stock/STOCKTAKE/new" element={<StockNew kind="STOCKTAKE" />} />

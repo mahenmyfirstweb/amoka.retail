@@ -1,3 +1,4 @@
+import { logEvent } from '../lib/location';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
@@ -65,6 +66,7 @@ export default function Cart() {
         return;
       }
       const doc = await rpc<Row>('create_sales_document', { p: payload });
+      logEvent(docType);
       toast('ok', `${doc.doc_no} saved`);
       clearCart();
       setNotes(''); setRefNo(''); setDiscount(0); setCollect(0);

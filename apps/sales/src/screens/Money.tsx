@@ -1,4 +1,5 @@
 /** Receipt (payment against selected invoices), Sales return, Customer statement, Receipts list. */
+import { logEvent } from '../lib/location';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -87,6 +88,7 @@ export function Receipt() {
     if (over) return toast('err', `${over.doc_no}: amount is more than its balance ${money(over.bal)}`);
     setBusy(true);
     try {
+      logEvent('RECEIPT');
       const r = await rpc<Row>('create_receipt', {
         p: {
           customer_id: Number(customerId), location_id: profile?.location_id, paymode_id: pm?.id, amount,
@@ -263,6 +265,7 @@ export function SalesReturn() {
         },
       });
       toast('ok', `${doc.doc_no} saved`);
+      logEvent('RETURN');
       qc.invalidateQueries();
       nav(`/orders/${doc.id}?new=1`, { replace: true });
     } catch (e) { toast('err', (e as Error).message); } finally { setBusy(false); }

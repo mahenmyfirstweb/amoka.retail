@@ -41,7 +41,7 @@ export function ProductPicker({
     queryFn: async () => {
       const { data } = await supabase
         .from('products')
-        .select('id, code, barcode, name, sell_price, wholesale_price, cost_price, taxable, uom:uoms(code), stocks(qty, location_id)')
+        .select('id, code, barcode, name, sell_price, wholesale_price, cost_price, taxable, pcs_per_carton, uom:uoms(code), stocks(qty, location_id)')
         .eq('is_active', true)
         .or(`code.ilike.${like(q)},name.ilike.${like(q)},barcode.eq.${q.replace(/[,()]/g, '')}`)
         .order('name')
@@ -77,7 +77,7 @@ export function ProductPicker({
       // Exact barcode / code lookup first (scanner input).
       const { data } = await supabase
         .from('products')
-        .select('id, code, barcode, name, sell_price, wholesale_price, cost_price, taxable, uom:uoms(code)')
+        .select('id, code, barcode, name, sell_price, wholesale_price, cost_price, taxable, pcs_per_carton, uom:uoms(code)')
         .eq('is_active', true)
         .or(`barcode.eq.${t.replace(/[,()]/g, '')},code.eq.${t.toUpperCase().replace(/[,()]/g, '')}`)
         .limit(1);

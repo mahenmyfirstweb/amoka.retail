@@ -9,6 +9,7 @@ import { dateFmt, isoDate, qtyFmt } from '../lib/format';
 import { Badge, Empty, ErrorBox, Field, Loading, PageHeader, Pager, StatusBadge, useToast } from '../components/ui';
 import { ProductPicker } from '../components/Pickers';
 import { CompanyHeader } from './docs/DocView';
+import { QtyCells, QtyHead, QtyInputs, joinQty, perCarton } from '../components/CartonQty';
 
 type StockKind = 'ADJUST' | 'STOCKTAKE' | 'TRANSFER' | 'REQUEST';
 const CFG: Record<StockKind, { title: string; singular: string; table: string; linesTable: string; base: string; printTitle: string; area?: string }> = {
@@ -299,6 +300,144 @@ export function StockView({ kind }: { kind: StockKind }) {
         <div className="mt-16 grid grid-cols-2 gap-16 text-xs text-ink-500">
           <div className="border-t border-ink-300 pt-2">Prepared by</div>
           <div className="border-t border-ink-300 pt-2">{isAdj ? 'Approved by' : 'Received by'}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// =====================================================================
+// Add / Edit Stock Adjustment — carton / loose layout
+// =====================================================================
+const ADJ_TYPES = ['Damaged', 'Expired', 'Found / Extra', 'Stock correction', 'Sample / Free issue', 'Internal use', 'Other'];
+
+interface AdjLine { product_id: number; code: string; name: string; pcs: number; inHand: number; sign: 1 | -1; c: number; l: number }
+
+export function StockAdjustNew() {
+  const nav = useNavigate();
+  const qc = useQueryClient();
+  const toast = useToast();
+  const { locationId } = useAuth();
+  const { data: locations } = useLookup('locations');
+  const [loc, setLoc] = useState<number | null>(locationId);
+  const [date, setDate] = useState(isoDate());
+  const [type, setType] = useState('');
+  const [remarks, setRemarks] = useState('');
+  const [lines, setLines] = useState<AdjLine[]>([]);
+  const [picking, setPicking] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  async function add(p: Row) {
+    if (lines.some((l) => l.product_id === p.id)) return;
+    let inHand = 0;
+    if (loc) {
+      const { data } = await supabase.from('stocks').select('qty').eq('product_id', p.id).eq('location_id', loc).maybeSingle();
+      inHand = Number(data?.qty ?? 0);
+    }
+    setLines((ls) => [...ls, { product_id: p.id, code: p.code, name: p.name, pcs: perCarton(p), inHand, sign: 1, c: 0, l: 0 }]);
+    setPicking(false);
+  }
+  const set = (i: number, patch: Partial<AdjLine>) => setLines(lines.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+
+  async function save() {
+    setError(null);
+    if (!loc) return setError('Select the location');
+    if (!type) return setError('Select the stock adjustment type');
+    const active = lines.filter((l) => joinQty(l.c, l.l, l.pcs) > 0);
+    if (!active.length) return setError('Enter the adjust quantity for at least one product');
+    const below = active.find((l) => l.sign < 0 && l.inHand - joinQty(l.c, l.l, l.pcs) < 0);
+    if (below && !confirm(`${below.name}: new stock will be negative. Continue?`)) return;
+    setSaving(true);
+    try {
+      const doc = await rpc<Row>('create_stock_adjustment', {
+        p: {
+          type: 'ADJUST', location_id: loc, doc_date: new Date(`${date}T${new Date().toTimeString().slice(0, 8)}`).toISOString(),
+          reason: type, notes: remarks || null,
+          lines: active.map((l) => ({ product_id: l.product_id, qty: l.sign * joinQty(l.c, l.l, l.pcs) })),
+        },
+      });
+      qc.invalidateQueries();
+      toast('ok', `${doc.doc_no} saved`);
+      nav(`/stock/ADJUST/${doc.id}`, { replace: true });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mx-auto max-w-7xl">
+      <PageHeader title="Add / Edit Stock Adjustment" back="/stock/ADJUST"
+        actions={<><button className="btn-secondary" onClick={() => nav(-1)}>Cancel</button><button className="btn-primary" disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Save'}</button></>} />
+      <div className="space-y-5">
+        <ErrorBox error={error} />
+        <div className="card p-5">
+          <div className="mb-4 inline-block rounded-lg bg-ink-900 px-3 py-1.5 text-xs font-semibold text-white">Stock Adjustment</div>
+          <div className="grid gap-4 md:grid-cols-4">
+            <Field label="StockAdj No"><input className="input" disabled value="Auto" /></Field>
+            <Field label="StockAdj Date"><input type="date" className="input" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
+            <Field label="Location Name">
+              <select className="input" value={loc ?? ''} onChange={(e) => { setLoc(Number(e.target.value)); setLines([]); }}>
+                <option value="">Select…</option>
+                {locations?.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+              </select>
+            </Field>
+            <Field label="StockAdj Type">
+              <select className="input" value={type} onChange={(e) => setType(e.target.value)}>
+                <option value="">Select Stock Adjustment</option>
+                {ADJ_TYPES.map((t) => <option key={t}>{t}</option>)}
+              </select>
+            </Field>
+            <Field label="Remarks" className="md:col-span-2"><textarea className="input" rows={3} value={remarks} onChange={(e) => setRemarks(e.target.value)} /></Field>
+          </div>
+        </div>
+
+        <div className="card overflow-visible p-5">
+          <div className="mb-4 inline-block rounded-lg bg-ink-900 px-3 py-1.5 text-xs font-semibold text-white">Products Info</div>
+          <div className="mb-3 flex items-center gap-3">
+            <button className="flex h-11 w-11 items-center justify-center rounded-full bg-ink-900 text-gold-300 shadow" onClick={() => setPicking(true)} title="Add product" disabled={!loc}><Plus size={20} /></button>
+            {picking && loc && <div className="flex-1"><ProductPicker onPick={add} locationId={loc} autoFocus placeholder="Search product name / code / barcode…" /></div>}
+            {!loc && <span className="text-sm text-ink-400">Select the location first</span>}
+          </div>
+          <div className="overflow-x-auto">
+            <table className="table">
+              <thead className="[&_th]:bg-ink-900 [&_th]:text-white">
+                <tr>
+                  <th className="align-bottom">SNo</th>
+                  <th className="align-bottom">Product Name</th>
+                  <QtyHead title="Stock In Hand" />
+                  <th className="align-bottom">Type</th>
+                  <QtyHead title="Stock Adjust" />
+                  <QtyHead title="New Stock" />
+                  <th className="align-bottom">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {!lines.length && <tr><td colSpan={13} className="py-10 text-center text-ink-400">Click + and search a product</td></tr>}
+                {lines.map((l, i) => {
+                  const adj = l.sign * joinQty(l.c, l.l, l.pcs);
+                  return (
+                    <tr key={l.product_id}>
+                      <td className="text-ink-400">{i + 1}</td>
+                      <td><div className="font-medium text-ink-900">{l.name}</div><div className="text-xs text-gold-700">Product Code: {l.code} · PcsPerCarton: {l.pcs}</div></td>
+                      <QtyCells qty={l.inHand} pcs={l.pcs} className="text-ink-500" />
+                      <td>
+                        <select className={`input w-16 py-1.5 font-bold ${l.sign > 0 ? 'text-emerald-700' : 'text-rose-600'}`} value={l.sign} onChange={(e) => set(i, { sign: Number(e.target.value) as 1 | -1 })}>
+                          <option value={1}>+</option>
+                          <option value={-1}>−</option>
+                        </select>
+                      </td>
+                      <QtyInputs c={l.c} l={l.l} pcs={l.pcs} onChange={(c, lq) => set(i, { c, l: lq })} />
+                      <QtyCells qty={l.inHand + adj} pcs={l.pcs} className={l.inHand + adj < 0 ? 'text-rose-600' : 'text-ink-900'} />
+                      <td><button className="btn-ghost p-1.5 text-ink-300 hover:text-rose-600" onClick={() => setLines(lines.filter((_, j) => j !== i))}><Trash2 size={15} /></button></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

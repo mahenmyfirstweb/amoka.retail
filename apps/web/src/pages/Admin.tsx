@@ -175,7 +175,7 @@ export function VoucherView() {
 // =====================================================================
 // Users & roles
 // =====================================================================
-const ROLES = ['ADMIN', 'ACCOUNTS', 'MANAGER', 'CASHIER', 'SALESMAN', 'STOREKEEPER'];
+const ROLES = ['ADMIN', 'ACCOUNTS', 'MANAGER', 'CASHIER', 'SALESMAN', 'STOREKEEPER', 'EXPORTER'];
 
 export function Users() {
   const toast = useToast();
@@ -278,6 +278,9 @@ const AREAS: [string, string][] = [
   ['sales_delivery', 'Delivery order'], ['sales_return', 'Sales return'], ['receipts', 'Receipts'], ['purchase', 'Purchase'],
   ['payments', 'Supplier payments'], ['vouchers', 'Accounts & vouchers'], ['opening_balance', 'Opening balances'],
   ['void_docs', 'Void documents'], ['reports', 'Reports'],
+  ['credit_override', 'Override credit limit'], ['expense_approve', 'Approve expense claims / view fuel'],
+  ['stock_intake', 'Stock intake (export) – create / submit'], ['stock_intake_approve', 'Stock intake – approve'],
+  ['track_staff', 'Live map – track salesmen'],
 ];
 
 export function Roles() {
@@ -362,6 +365,7 @@ export function Settings() {
         {f('tax_rate', 'Tax rate %', 'number')}
         <label className="flex items-center gap-2 self-end pb-2 text-sm"><input type="checkbox" checked={!!s.tax_inclusive} onChange={(e) => setS({ ...s, tax_inclusive: e.target.checked })} /> Selling prices include tax</label>
         <label className="flex items-center gap-2 text-sm md:col-span-2"><input type="checkbox" checked={!!s.show_tax} onChange={(e) => setS({ ...s, show_tax: e.target.checked })} /> Show GST separately on invoices &amp; receipts <span className="text-xs text-ink-400">(off = only the total is shown, title "INVOICE")</span></label>
+        <label className="flex items-center gap-2 text-sm md:col-span-2"><input type="checkbox" checked={s.track_location !== false} onChange={(e) => setS({ ...s, track_location: e.target.checked })} /> Share salesman location with the Live Map while the salesman app is open</label>
         {f('receipt_footer', 'POS receipt footer', 'textarea', 'md:col-span-2')}
         {f('invoice_terms', 'Invoice terms & conditions', 'textarea', 'md:col-span-2')}
       </div>
