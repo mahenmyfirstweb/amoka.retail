@@ -31,7 +31,7 @@ export function QtyCells({ qty, pcs, className = '' }: { qty: number; pcs: numbe
 export function QtyInputs({ c, l, pcs, onChange, disabled }: { c: number; l: number; pcs: number; onChange: (c: number, l: number) => void; disabled?: boolean }) {
   return (
     <>
-      <td className="px-1"><input type="number" min="0" step="1" className="input num w-20 py-1.5" disabled={disabled || pcs <= 1} placeholder={pcs > 1 ? '0' : '—'} value={c || ''} onChange={(e) => onChange(Number(e.target.value), l)} /></td>
+      <td className="px-1"><input type="number" min="0" step="1" className="input num w-20 py-1.5" disabled={disabled} placeholder="0" value={c || ''} onChange={(e) => onChange(Number(e.target.value), l)} /></td>
       <td className="px-1"><input type="number" min="0" step="any" className="input num w-20 py-1.5" disabled={disabled} placeholder="0" value={l || ''} onChange={(e) => onChange(c, Number(e.target.value))} /></td>
       <td className="num font-semibold">{qtyFmt(joinQty(c, l, pcs))}</td>
     </>
@@ -45,5 +45,24 @@ export function QtyHead({ title, className = '' }: { title: string; className?: 
       <div>{title}</div>
       <div className="mt-1 grid grid-cols-3 gap-2 text-[10px] font-medium normal-case tracking-normal opacity-80"><span>CQty</span><span>LQty</span><span>Qty</span></div>
     </th>
+  );
+}
+
+/** Small editable "PcsPerCarton" box shown under the product name. */
+export function PcsInput({ value, onChange }: { value: number; onChange: (n: number) => void }) {
+  return (
+    <label className="mt-1 inline-flex items-center gap-1 text-xs text-gold-700">
+      PcsPerCarton:
+      <input
+        type="number"
+        min="1"
+        step="1"
+        className={`w-16 rounded-md border px-1.5 py-0.5 text-right text-xs ${value <= 1 ? 'border-amber-400 bg-amber-50' : 'border-ink-200 bg-white'}`}
+        value={value || ''}
+        onChange={(e) => onChange(Math.max(1, Number(e.target.value) || 1))}
+        title="Pieces in one carton"
+      />
+      {value <= 1 && <span className="text-amber-600">set carton size</span>}
+    </label>
   );
 }

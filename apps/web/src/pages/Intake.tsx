@@ -15,7 +15,7 @@ import { dateFmt, dateTimeFmt, isoDate, qtyFmt } from '../lib/format';
 import { Badge, Empty, ErrorBox, Field, Loading, Modal, PageHeader, useToast } from '../components/ui';
 import { ProductPicker } from '../components/Pickers';
 import { CompanyHeader } from './docs/DocView';
-import { QtyCells, QtyHead, QtyInputs, joinQty, perCarton, splitQty } from '../components/CartonQty';
+import { PcsInput, QtyCells, QtyHead, QtyInputs, joinQty, perCarton, splitQty } from '../components/CartonQty';
 
 const STATUS_COLOR: Record<string, 'gray' | 'gold' | 'green' | 'red'> = { DRAFT: 'gray', SUBMITTED: 'gold', APPROVED: 'green', REJECTED: 'red' };
 const REASONS = ['Customs sample', 'Damaged', 'Short shipped', 'Expired', 'Other'];
@@ -73,14 +73,23 @@ export function IntakeList() {
   );
 }
 
-interface Line { product_id: number; code: string; name: string; uom?: string; pcs: number; c: number; l: number; remarks?: string }
+interface Line { product_id: number; code: string; name: string; uom?: string; pcs: number; pcs0: number; c: number; l: number; remarks?: string }
 
-const ProductCell = ({ name, code, pcs, uom, extra }: { name: string; code: string; pcs: number; uom?: string; extra?: string }) => (
+const ProductCell = ({ name, code, pcs, uom, extra, onPcs }: { name: string; code: string; pcs: number; uom?: string; extra?: string; onPcs?: (n: number) => void }) => (
   <td>
     <div className="font-medium text-ink-900">{name}</div>
-    <div className="text-xs text-gold-700">Product Code: {code} · PcsPerCarton: {pcs}{uom ? ` · ${uom}` : ''}{extra ? ` · ${extra}` : ''}</div>
+    <div className="text-xs text-gold-700">Product Code: {code}{onPcs ? '' : ` · PcsPerCarton: ${pcs}`}{uom ? ` · ${uom}` : ''}{extra ? ` · ${extra}` : ''}</div>
+    {onPcs && <PcsInput value={pcs} onChange={onPcs} />}
   </td>
 );
+
+/** Saves a changed carton size back to the product (only for users allowed to edit products). */
+async function rememberCartonSizes(items: { product_id: number; pcs: number; original: number }[], canEdit: boolean) {
+  if (!canEdit) return;
+  for (const it of items.filter((x) => x.pcs > 1 && x.pcs !== x.original)) {
+    await supabase.from('products').update({ pcs_per_carton: it.pcs }).eq('id', it.product_id);
+  }
+}
 
 /** Exporter: create / edit a draft intake (cartons + loose pieces). */
 export function IntakeEdit() {
@@ -88,6 +97,7 @@ export function IntakeEdit() {
   const nav = useNavigate();
   const toast = useToast();
   const qc = useQueryClient();
+  const { can } = useAuth();
   const [readyDate, setReadyDate] = useState(isoDate());
   const [ref, setRef] = useState('');
   const [notes, setNotes] = useState('');
@@ -101,15 +111,16 @@ export function IntakeEdit() {
       if (!data) return;
       setReadyDate(data.ready_date); setRef(data.shipment_ref ?? ''); setNotes(data.notes ?? '');
       setLines((data.lines as Row[]).sort((a, b) => a.line_no - b.line_no).map((l) => {
-        const pcs = perCarton(l.product);
+        const pcs0 = perCarton(l.product);
+        const pcs = Number(l.pcs_per_carton) > 0 ? Number(l.pcs_per_carton) : pcs0;
         const s = splitQty(Number(l.qty), pcs);
-        return { product_id: l.product_id, code: l.product.code, name: l.product.name, uom: l.product.uom?.code, pcs, c: s.c, l: s.l, remarks: l.remarks ?? '' };
+        return { product_id: l.product_id, code: l.product.code, name: l.product.name, uom: l.product.uom?.code, pcs, pcs0, c: s.c, l: s.l, remarks: l.remarks ?? '' };
       }));
     });
   }, [id]);
 
   function add(p: Row) {
-    setLines((ls) => (ls.some((l) => l.product_id === p.id) ? ls : [...ls, { product_id: p.id, code: p.code, name: p.name, uom: p.uom?.code, pcs: perCarton(p), c: 0, l: 0 }]));
+    setLines((ls) => (ls.some((l) => l.product_id === p.id) ? ls : [...ls, { product_id: p.id, code: p.code, name: p.name, uom: p.uom?.code, pcs: perCarton(p), pcs0: perCarton(p), c: 0, l: 0 }]));
   }
 
   async function save(submit: boolean) {
@@ -120,8 +131,9 @@ export function IntakeEdit() {
     try {
       const doc = await rpc<Row>('save_stock_intake', {
         p: { id: id ? Number(id) : null, ready_date: readyDate, shipment_ref: ref || null, notes: notes || null,
-             lines: lines.map((l) => ({ product_id: l.product_id, qty: joinQty(l.c, l.l, l.pcs), remarks: l.remarks || null })) },
+             lines: lines.map((l) => ({ product_id: l.product_id, qty: joinQty(l.c, l.l, l.pcs), remarks: l.remarks || null, pcs_per_carton: l.pcs })) },
       });
+      await rememberCartonSizes(lines.map((l) => ({ product_id: l.product_id, pcs: l.pcs, original: l.pcs0 })), can('products'));
       if (submit) await rpc('submit_stock_intake', { p_id: doc.id });
       qc.invalidateQueries();
       toast('ok', `${doc.intake_no} ${submit ? 'submitted for approval' : 'saved as draft'}`);
@@ -163,7 +175,7 @@ export function IntakeEdit() {
                 {lines.map((l, i) => (
                   <tr key={l.product_id}>
                     <td className="text-ink-400">{i + 1}</td>
-                    <ProductCell name={l.name} code={l.code} pcs={l.pcs} uom={l.uom} />
+                    <ProductCell name={l.name} code={l.code} pcs={l.pcs} uom={l.uom} onPcs={(n) => set(i, { pcs: n })} />
                     <QtyInputs c={l.c} l={l.l} pcs={l.pcs} onChange={(c, lq) => set(i, { c, l: lq })} />
                     <td><input className="input py-1.5" value={l.remarks ?? ''} placeholder="batch, expiry…" onChange={(e) => set(i, { remarks: e.target.value })} /></td>
                     <td><button className="btn-ghost p-1.5 text-ink-300 hover:text-rose-600" onClick={() => setLines(lines.filter((_, j) => j !== i))}><Trash2 size={15} /></button></td>
@@ -215,7 +227,7 @@ export function IntakeView() {
     if (!doc) return;
     setH((x) => ({ ...x, location_id: doc.location_id ?? locationId ?? locations?.[0]?.id ?? 0, container_no: doc.container_no ?? '', lot_no: doc.lot_no ?? '', arrival_date: doc.arrival_date ?? isoDate() }));
     setLines((doc.lines as Row[]).sort((a, b) => a.line_no - b.line_no || a.id - b.id).map((l) => {
-      const pcs = perCarton(l.product);
+      const pcs = Number(l.pcs_per_carton) > 0 ? Number(l.pcs_per_carton) : perCarton(l.product);
       const r = splitQty(Number(l.received_qty ?? l.qty), pcs);
       const dd = splitQty(Number(l.deduct_qty ?? 0), pcs);
       return {

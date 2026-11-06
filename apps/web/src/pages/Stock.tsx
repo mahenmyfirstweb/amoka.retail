@@ -9,7 +9,7 @@ import { dateFmt, isoDate, qtyFmt } from '../lib/format';
 import { Badge, Empty, ErrorBox, Field, Loading, PageHeader, Pager, StatusBadge, useToast } from '../components/ui';
 import { ProductPicker } from '../components/Pickers';
 import { CompanyHeader } from './docs/DocView';
-import { QtyCells, QtyHead, QtyInputs, joinQty, perCarton } from '../components/CartonQty';
+import { PcsInput, QtyCells, QtyHead, QtyInputs, joinQty, perCarton } from '../components/CartonQty';
 
 type StockKind = 'ADJUST' | 'STOCKTAKE' | 'TRANSFER' | 'REQUEST';
 const CFG: Record<StockKind, { title: string; singular: string; table: string; linesTable: string; base: string; printTitle: string; area?: string }> = {
@@ -311,13 +311,13 @@ export function StockView({ kind }: { kind: StockKind }) {
 // =====================================================================
 const ADJ_TYPES = ['Damaged', 'Expired', 'Found / Extra', 'Stock correction', 'Sample / Free issue', 'Internal use', 'Other'];
 
-interface AdjLine { product_id: number; code: string; name: string; pcs: number; inHand: number; sign: 1 | -1; c: number; l: number }
+interface AdjLine { product_id: number; code: string; name: string; pcs: number; pcs0: number; inHand: number; sign: 1 | -1; c: number; l: number }
 
 export function StockAdjustNew() {
   const nav = useNavigate();
   const qc = useQueryClient();
   const toast = useToast();
-  const { locationId } = useAuth();
+  const { locationId, can } = useAuth();
   const { data: locations } = useLookup('locations');
   const [loc, setLoc] = useState<number | null>(locationId);
   const [date, setDate] = useState(isoDate());
@@ -335,7 +335,7 @@ export function StockAdjustNew() {
       const { data } = await supabase.from('stocks').select('qty').eq('product_id', p.id).eq('location_id', loc).maybeSingle();
       inHand = Number(data?.qty ?? 0);
     }
-    setLines((ls) => [...ls, { product_id: p.id, code: p.code, name: p.name, pcs: perCarton(p), inHand, sign: 1, c: 0, l: 0 }]);
+    setLines((ls) => [...ls, { product_id: p.id, code: p.code, name: p.name, pcs: perCarton(p), pcs0: perCarton(p), inHand, sign: 1, c: 0, l: 0 }]);
     setPicking(false);
   }
   const set = (i: number, patch: Partial<AdjLine>) => setLines(lines.map((x, j) => (j === i ? { ...x, ...patch } : x)));
@@ -357,6 +357,7 @@ export function StockAdjustNew() {
           lines: active.map((l) => ({ product_id: l.product_id, qty: l.sign * joinQty(l.c, l.l, l.pcs) })),
         },
       });
+      if (can('products')) for (const l of lines.filter((x) => x.pcs > 1 && x.pcs !== x.pcs0)) await supabase.from('products').update({ pcs_per_carton: l.pcs }).eq('id', l.product_id);
       qc.invalidateQueries();
       toast('ok', `${doc.doc_no} saved`);
       nav(`/stock/ADJUST/${doc.id}`, { replace: true });
@@ -421,7 +422,7 @@ export function StockAdjustNew() {
                   return (
                     <tr key={l.product_id}>
                       <td className="text-ink-400">{i + 1}</td>
-                      <td><div className="font-medium text-ink-900">{l.name}</div><div className="text-xs text-gold-700">Product Code: {l.code} · PcsPerCarton: {l.pcs}</div></td>
+                      <td><div className="font-medium text-ink-900">{l.name}</div><div className="text-xs text-gold-700">Product Code: {l.code}</div><PcsInput value={l.pcs} onChange={(n) => set(i, { pcs: n })} /></td>
                       <QtyCells qty={l.inHand} pcs={l.pcs} className="text-ink-500" />
                       <td>
                         <select className={`input w-16 py-1.5 font-bold ${l.sign > 0 ? 'text-emerald-700' : 'text-rose-600'}`} value={l.sign} onChange={(e) => set(i, { sign: Number(e.target.value) as 1 | -1 })}>
