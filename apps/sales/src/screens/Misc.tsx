@@ -6,8 +6,8 @@ import { Bluetooth, ChevronRight, ClipboardList, CloudUpload, Fuel as FuelIcon, 
 import { useStore } from '../lib/store';
 import { supabase, supabaseConfigured } from '../lib/supabase';
 import { dateTimeFmt, longDate, money } from '../lib/format';
-import { bluetoothSupported, connectPrinter, paperWidth, printReceipt, printerName, setPaperWidth } from '../lib/printer';
-import { TopBar, useToast } from '../ui';
+import { bluetoothSupported, connectPrinter, forgetPrinter, paperWidth, printReceipt, printerName, setPaperWidth } from '../lib/printer';
+import { Sheet, TopBar, useToast } from '../ui';
 
 export function Home() {
   const { profile, customer, pending, online, products, customers, lastSync, settings } = useStore();
@@ -83,8 +83,26 @@ export function More() {
   const [paper, setPaper] = useState(paperWidth());
   const [auto, setAuto] = useState(localStorage.getItem('amoka.sales.autoprint') === '1');
 
+  const [printerHelp, setPrinterHelp] = useState<string | null>(null);
   async function pair() {
-    try { setPrinter(await connectPrinter()); toast('ok', 'Printer connected'); } catch (e) { toast('err', (e as Error).message); }
+    try {
+      setPrinter(await connectPrinter());
+      toast('ok', 'Printer connected');
+    } catch (e) {
+      const err = e as Error;
+      // Chooser closed / no printer found / Bluetooth off / not supported -> show the help sheet instead of a raw error.
+      if (err.name === 'NotFoundError' || /cancel/i.test(err.message)) setPrinterHelp('NOT_FOUND');
+      else if (err.message === 'BLUETOOTH_OFF') setPrinterHelp('BLUETOOTH_OFF');
+      else if (err.message === 'NO_WEB_BLUETOOTH' || err.name === 'NotSupportedError') setPrinterHelp('UNSUPPORTED');
+      else if (err.name === 'SecurityError') setPrinterHelp('PERMISSION');
+      else setPrinterHelp(err.message);
+    }
+  }
+  function usePhonePrint() {
+    forgetPrinter();
+    setPrinter(null);
+    setPrinterHelp(null);
+    toast('ok', 'Print will use the phone print screen (choose RawBT / your printer there)');
   }
   async function test() {
     try {
@@ -118,6 +136,7 @@ export function More() {
             <input type="checkbox" className="h-5 w-5 accent-ink-900" checked={auto} onChange={(e) => { setAuto(e.target.checked); localStorage.setItem('amoka.sales.autoprint', e.target.checked ? '1' : '0'); }} />
           </label>
           <Item icon={<Printer size={18} />} label="Test print" onClick={test} />
+          <Item icon={<Printer size={18} />} label="Use phone print (no pairing)" sub={printer ? "Forget paired printer and use RawBT / Android print" : "Active — prints via the phone print screen"} onClick={usePhonePrint} />
         </Section>
 
         <Section title="Data">
@@ -132,6 +151,7 @@ export function More() {
           </p>
         </Section>
 
+        <PrinterHelp reason={printerHelp} onClose={() => setPrinterHelp(null)} onRetry={() => { setPrinterHelp(null); pair(); }} onPhonePrint={usePhonePrint} />
         <button className="btn-secondary w-full text-rose-600" onClick={() => (pending.length && !confirm(`${pending.length} offline orders are not sent yet. Sign out anyway?`) ? null : signOut())}><LogOut size={17} /> Sign out</button>
       </div>
     </div>
@@ -186,5 +206,56 @@ export function Login() {
       </div>
       <div className="pb-6 text-center text-xs text-ink-500 safe-bottom">© {new Date().getFullYear()} AMOKA TRADING PTE LTD</div>
     </div>
+  );
+}
+
+/** Shown when pairing fails: what to check, and the phone-print (RawBT) alternative. */
+function PrinterHelp({ reason, onClose, onRetry, onPhonePrint }: { reason: string | null; onClose: () => void; onRetry: () => void; onPhonePrint: () => void }) {
+  if (!reason) return null;
+  const title =
+    reason === 'BLUETOOTH_OFF' ? 'Bluetooth is off' :
+    reason === 'UNSUPPORTED' ? 'Bluetooth printing not available in this browser' :
+    reason === 'PERMISSION' ? 'Bluetooth permission needed' :
+    'Printer not found';
+  return (
+    <Sheet
+      open
+      onClose={onClose}
+      title={title}
+      footer={
+        <div className="space-y-2">
+          {reason !== 'UNSUPPORTED' && <button className="btn-primary w-full" onClick={onRetry}>Try again</button>}
+          <button className="btn-secondary w-full" onClick={onPhonePrint}>Use phone print instead (RawBT / Android print)</button>
+        </div>
+      }
+    >
+      <div className="space-y-4 text-sm text-ink-700">
+        {reason === 'UNSUPPORTED' ? (
+          <p>Direct Bluetooth printing works in <b>Chrome on Android</b>. On iPhone or other browsers, use <b>phone print</b> below — invoices still print in 80 mm format.</p>
+        ) : (
+          <>
+            <div>
+              <div className="mb-1 font-semibold text-ink-900">Check on the phone</div>
+              <ol className="list-decimal space-y-1 pl-5">
+                <li>Turn on <b>Bluetooth</b> and <b>Location (GPS)</b> — Android needs Location to find printers.</li>
+                <li>Android Settings → Apps → <b>Chrome</b> → Permissions → allow <b>Nearby devices</b> and <b>Location</b>.</li>
+                <li>Switch the printer <b>on</b>, and disconnect it from any other phone or app.</li>
+                <li>Tap <b>Try again</b>, wait <b>5–10 seconds</b> for the printer name to appear in the list, tap it, then tap <b>Pair</b>.</li>
+              </ol>
+            </div>
+            <div className="rounded-xl bg-gold-50 p-3 ring-1 ring-gold-200">
+              <div className="mb-1 font-semibold text-ink-900">Printer never appears in the list?</div>
+              <p>Many thermal printers use <b>classic Bluetooth</b>, which Chrome cannot see. Use phone print instead:</p>
+              <ol className="mt-1 list-decimal space-y-1 pl-5">
+                <li>Install the free <b>RawBT</b> app from Play Store.</li>
+                <li>Pair the printer in <b>Android Settings → Bluetooth</b>, then select it in RawBT (80 mm).</li>
+                <li>Tap <b>Use phone print instead</b> below. When you print an invoice, choose <b>RawBT</b> as the printer.</li>
+              </ol>
+            </div>
+          </>
+        )}
+        {!['NOT_FOUND', 'BLUETOOTH_OFF', 'UNSUPPORTED', 'PERMISSION'].includes(reason) && <p className="text-xs text-ink-400">Details: {reason}</p>}
+      </div>
+    </Sheet>
   );
 }

@@ -36,8 +36,17 @@ async function findWritable(server: BluetoothRemoteGATTServer) {
   throw new Error('This printer does not expose a BLE print service. Use "System print" instead.');
 }
 
+/** Forget the paired printer: printing then uses the phone's print screen (e.g. RawBT / Android print). */
+export function forgetPrinter() {
+  try { device?.gatt?.disconnect(); } catch { /* ignore */ }
+  device = null;
+  characteristic = null;
+  localStorage.removeItem('amoka.sales.printerName');
+}
+
 export async function connectPrinter() {
-  if (!bluetoothSupported()) throw new Error('Bluetooth printing needs Chrome on Android (or desktop Chrome).');
+  if (!bluetoothSupported()) throw new Error('NO_WEB_BLUETOOTH');
+  if (navigator.bluetooth.getAvailability && !(await navigator.bluetooth.getAvailability())) throw new Error('BLUETOOTH_OFF');
   device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: SERVICES });
   const server = await device.gatt!.connect();
   characteristic = await findWritable(server);
