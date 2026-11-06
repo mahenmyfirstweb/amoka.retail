@@ -110,6 +110,27 @@ export const MASTERS: Record<string, MasterDef> = {
     ], [{ key: 'type', label: 'Type', render: (r) => <Badge>{r.type}</Badge> }]),
     order: 'code',
   },
+  vehicles: {
+    title: 'Vehicles',
+    singular: 'Vehicle',
+    area: 'masters',
+    select: '*, driver:profiles(full_name)',
+    search: ['code', 'name'],
+    order: 'code',
+    columns: [
+      { key: 'code', label: 'Vehicle no.' },
+      { key: 'name', label: 'Model / description' },
+      { key: 'fuel_type', label: 'Fuel', render: (r) => <Badge>{r.fuel_type}</Badge> },
+      { key: 'driver', label: 'Driver / salesman', render: (r) => r.driver?.full_name },
+    ],
+    fields: [
+      { key: 'code', label: 'Vehicle no. (e.g. GBA1234X)', required: true, upper: true },
+      { key: 'name', label: 'Model / description', required: true },
+      { key: 'fuel_type', label: 'Fuel type', type: 'enum', options: ['DIESEL', 'PETROL', 'ELECTRIC'], required: true },
+      { key: 'assigned_to', label: 'Driver / salesman', type: 'salesman' },
+      active,
+    ],
+  },
   customers: {
     title: 'Customers',
     singular: 'Customer',

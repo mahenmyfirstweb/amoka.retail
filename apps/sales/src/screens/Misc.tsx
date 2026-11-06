@@ -2,7 +2,7 @@ import { BrandLogo } from '../Brand';
 import { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import { Bluetooth, ChevronRight, ClipboardList, CloudUpload, HandCoins, LayoutGrid, LogOut, Printer, RefreshCw, ScrollText, Store as StoreIcon, Undo2, Wallet } from 'lucide-react';
+import { Bluetooth, ChevronRight, ClipboardList, CloudUpload, Fuel as FuelIcon, HandCoins, LayoutGrid, LogOut, Printer, Receipt, RefreshCw, ScrollText, Store as StoreIcon, Undo2, Wallet } from 'lucide-react';
 import { useStore } from '../lib/store';
 import { supabase, supabaseConfigured } from '../lib/supabase';
 import { dateTimeFmt, longDate, money } from '../lib/format';
@@ -56,6 +56,8 @@ export function Home() {
           <Tile icon={<ScrollText size={22} />} title="Statement" sub="Outstanding by date range" onClick={() => nav('/pick/statement')} />
           <Tile icon={<HandCoins size={22} />} title="My receipts" sub="Payments collected" onClick={() => nav('/receipts')} />
           <Tile icon={<ClipboardList size={22} />} title="Returns list" sub="Credit notes" onClick={() => nav('/orders')} />
+          <Tile icon={<Receipt size={22} />} title="My expenses" sub="Claim with receipt photo" onClick={() => nav('/expenses')} />
+          <Tile icon={<FuelIcon size={22} />} title="Diesel top-up" sub="Litres, time & proof" onClick={() => nav('/fuel')} />
         </div>
         <div className="px-4 text-center text-xs text-ink-400">{lastSync ? `Catalog updated ${dateTimeFmt(lastSync)}` : 'Catalog not downloaded yet'}</div>
       </div>

@@ -53,6 +53,7 @@ export const MENU: Group[] = [
       { to: '/m/taxes', label: 'Tax' },
       { to: '/m/areas', label: 'Area' },
       { to: '/m/bins', label: 'Bin' },
+      { to: '/m/vehicles', label: 'Vehicles' },
     ],
   },
   {
@@ -123,6 +124,8 @@ export const MENU: Group[] = [
       { to: '/vouchers/PAYMENT', label: 'Payment Voucher' },
       { to: '/vouchers/RECEIPT', label: 'Receipt Voucher' },
       { to: '/vouchers/EXPENSE', label: 'Expense Voucher' },
+      { to: '/claims', label: 'Salesman Expense Claims' },
+      { to: '/reports/fuel', label: 'Diesel / Fuel Report' },
     ],
   },
   {

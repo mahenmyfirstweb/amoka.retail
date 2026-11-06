@@ -18,6 +18,7 @@ import { StockList, StockNew, StockView } from './pages/Stock';
 import Pos from './pages/Pos';
 import { AgingReport, CustomerStatement, SalesReport } from './pages/Reports';
 import { CustomerOutstandingReport, ReceiptReport } from './pages/Reports2';
+import { ExpenseClaims, FuelReport } from './pages/Claims';
 import {
   Account, DataImport, OpeningBalances, PosSessions, PriceList, Roles, Settings, Users, VoucherList, VoucherNew, VoucherView,
 } from './pages/Admin';
@@ -130,6 +131,8 @@ createRoot(document.getElementById('root')!).render(
 
                   <Route path="reports/customer-outstanding" element={<CustomerOutstandingReport />} />
                   <Route path="reports/receipts" element={<ReceiptReport />} />
+                  <Route path="reports/fuel" element={<FuelReport />} />
+                  <Route path="claims" element={<ExpenseClaims />} />
                   <Route path="reports/sales" element={<SalesReport />} />
                   <Route path="reports/profit" element={<SalesReport profit />} />
                   <Route path="reports/receivable" element={<AgingReport kind="CUSTOMER" />} />

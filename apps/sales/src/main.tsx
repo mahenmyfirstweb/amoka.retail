@@ -11,6 +11,8 @@ import Cart from './screens/Cart';
 import Orders, { OrderView } from './screens/Orders';
 import { PickShop, Receipt, ReceiptsList, SalesReturn, Statement } from './screens/Money';
 import { Home, Login, More } from './screens/Misc';
+import Expenses from './screens/Expenses';
+import Fuel from './screens/Fuel';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null as Error | null };
@@ -62,6 +64,8 @@ createRoot(document.getElementById('root')!).render(
                     <Route path="statement/:customerId" element={<Statement />} />
                     <Route path="pick/:action" element={<PickShop />} />
                     <Route path="receipts" element={<ReceiptsList />} />
+                    <Route path="expenses" element={<Expenses />} />
+                    <Route path="fuel" element={<Fuel />} />
                     <Route path="more" element={<More />} />
                     <Route path="*" element={<Navigate to="/" replace />} />
                   </Route>
