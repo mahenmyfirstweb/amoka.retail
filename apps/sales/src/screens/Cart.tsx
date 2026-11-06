@@ -1,10 +1,11 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router';
 import { ShoppingCart, Trash2 } from 'lucide-react';
 import { newClientRef, useStore, type Row } from '../lib/store';
 import { rpc } from '../lib/supabase';
 import { computeTotals, price } from '../lib/format';
-import { CustomerBar, Empty, ProductImage, Sheet, Stepper, TopBar, useToast } from '../ui';
+import { CreditBlockSheet, CustomerBar, Empty, ProductImage, Sheet, Stepper, TopBar, isCreditBlock, useToast } from '../ui';
 
 export default function Cart() {
   const s = useStore();
@@ -26,13 +27,25 @@ export default function Cart() {
   // Default = first paymode in Master → Paymode order (Bill to Bill).
   const cash = paymodes[0];
 
-  async function submit() {
+  // Live credit position for invoices on credit (amount not collected now).
+  const creditAmount = Math.max(totals.total - (collect || 0), 0);
+  const { data: credit } = useQuery({
+    queryKey: ['credit-status', customer?.id, creditAmount],
+    enabled: !!customer && online && type === 'INVOICE',
+    queryFn: () => rpc<Row>('customer_credit_status', { p_customer: customer!.id, p_new_amount: creditAmount }),
+  });
+  const [creditBlock, setCreditBlock] = useState<string | null>(null);
+  const canOverride = permissions.has('credit_override');
+
+  async function submit(forceType?: 'ORDER') {
+    const docType = forceType ?? type;
     if (!customer) return toast('err', 'Select the retail shop first');
     if (!cart.length) return;
-    if (type === 'INVOICE' && !online) return toast('err', 'Invoices need internet. Save as an order now, or wait for signal.');
+    if (docType === 'INVOICE' && !online) return toast('err', 'Invoices need internet. Save as an order now, or wait for signal.');
+    if (docType === 'INVOICE' && creditAmount > 0.004 && credit?.blocked && !canOverride) return setCreditBlock(`CREDIT_BLOCK: ${credit.message}`);
     setBusy(true);
     const payload: Row = {
-      type,
+      type: docType,
       customer_id: customer.id,
       location_id: profile?.location_id ?? null,
       client_ref: newClientRef(),
@@ -41,7 +54,7 @@ export default function Cart() {
       discount,
       lines: cart.map((l) => ({ product_id: l.product_id, qty: l.qty, price: l.price, discount: l.discount })),
     };
-    if (type === 'INVOICE' && collect > 0) payload.payments = [{ paymode_id: paymodeId ?? cash?.id, amount: Math.min(collect, totals.total) }];
+    if (docType === 'INVOICE' && collect > 0) payload.payments = [{ paymode_id: paymodeId ?? cash?.id, amount: Math.min(collect, totals.total) }];
 
     try {
       if (!online) {
@@ -58,12 +71,13 @@ export default function Cart() {
       nav(`/orders/${doc.id}?new=1`);
     } catch (e) {
       const msg = (e as Error).message;
-      if (/fetch|network/i.test(msg) && type === 'ORDER') {
+      if (/fetch|network/i.test(msg) && docType === 'ORDER') {
         queueOrder({ client_ref: payload.client_ref, created_at: new Date().toISOString(), customer, payload });
         toast('ok', 'No connection — order saved offline');
         clearCart();
         nav('/orders');
-      } else toast('err', msg);
+      } else if (isCreditBlock(msg)) setCreditBlock(msg);
+      else toast('err', msg);
     } finally {
       setBusy(false);
     }
@@ -139,10 +153,25 @@ export default function Cart() {
               <span className="font-semibold">Total</span>
               <span className="font-display text-2xl font-semibold tabular-nums">{price(totals.total)}</span>
             </div>
-            {customer && Number(customer.credit_limit) > 0 && <div className="text-xs text-ink-400">Credit limit {price(customer.credit_limit)}</div>}
           </div>
 
-          <button className="btn-gold w-full py-4 text-base" disabled={busy || !customer} onClick={submit}>
+          {type === 'INVOICE' && credit && (
+            <div className={`rounded-2xl p-4 text-sm ring-1 ${credit.blocked && creditAmount > 0.004 ? 'bg-rose-50 text-rose-800 ring-rose-200' : 'bg-white text-ink-600 ring-ink-100'}`}>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div><div className="text-[11px] text-ink-400">Outstanding</div><div className="font-semibold tabular-nums">{price(credit.outstanding)}</div></div>
+                <div><div className="text-[11px] text-ink-400">Credit limit</div><div className="font-semibold tabular-nums">{Number(credit.credit_limit) > 0 ? price(credit.credit_limit) : 'No limit'}</div></div>
+                <div><div className="text-[11px] text-ink-400">Overdue</div><div className={`font-semibold tabular-nums ${Number(credit.overdue_amount) > 0 ? 'text-rose-600' : ''}`}>{price(credit.overdue_amount)}</div></div>
+              </div>
+              {credit.blocked && creditAmount > 0.004 && (
+                <p className="mt-3 text-xs leading-relaxed">
+                  {credit.message}
+                  {canOverride && <b> (You can override as {profile?.role}.)</b>}
+                </p>
+              )}
+            </div>
+          )}
+
+          <button className="btn-gold w-full py-4 text-base" disabled={busy || !customer} onClick={() => submit()}>
             {busy ? 'Saving…' : !customer ? 'Select a shop first' : type === 'ORDER' ? `Place order · ${price(totals.total)}` : `Create invoice · ${price(totals.total)}`}
           </button>
         </div>
@@ -158,6 +187,13 @@ export default function Cart() {
           </div>
         )}
       </Sheet>
+
+      <CreditBlockSheet
+        message={creditBlock}
+        customerId={customer?.id}
+        onClose={() => setCreditBlock(null)}
+        onSaveAsOrder={() => submit('ORDER')}
+      />
     </div>
   );
 }

@@ -177,3 +177,41 @@ export function AppShell() {
     </div>
   );
 }
+
+// ---------- Credit limit / overdue pop-up ----------
+export const isCreditBlock = (msg: string) => msg.startsWith('CREDIT_BLOCK');
+export const creditText = (msg: string) => msg.replace(/^CREDIT_BLOCK:\s*/, '');
+
+export function CreditBlockSheet({ message, customerId, onClose, onSaveAsOrder }: {
+  message: string | null;
+  customerId?: number | null;
+  onClose: () => void;
+  onSaveAsOrder?: () => void;
+}) {
+  const nav = useNavigate();
+  if (!message) return null;
+  return (
+    <Sheet
+      open
+      onClose={onClose}
+      title="Credit limit reached"
+      footer={
+        <div className="space-y-2">
+          {customerId && (
+            <button className="btn-gold w-full py-3.5" onClick={() => { onClose(); nav(`/collect/${customerId}`); }}>
+              Collect payment now
+            </button>
+          )}
+          {onSaveAsOrder && <button className="btn-secondary w-full" onClick={() => { onClose(); onSaveAsOrder(); }}>Save as sales order instead</button>}
+          <button className="btn-ghost w-full" onClick={onClose}>Close</button>
+        </div>
+      }
+    >
+      <div className="flex items-start gap-3 rounded-2xl bg-rose-50 p-4 text-rose-800 ring-1 ring-rose-200">
+        <AlertCircle size={22} className="mt-0.5 shrink-0" />
+        <p className="text-sm leading-relaxed">{creditText(message)}</p>
+      </div>
+      <p className="mt-3 text-xs text-ink-400">New credit invoices are allowed again once the payment is collected. Invoices paid in full now, and sales orders, can still be created.</p>
+    </Sheet>
+  );
+}

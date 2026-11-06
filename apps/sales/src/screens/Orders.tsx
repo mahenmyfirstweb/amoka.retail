@@ -6,7 +6,7 @@ import { useStore, type Row } from '../lib/store';
 import { rpc, supabase } from '../lib/supabase';
 import { dateFmt, dateTimeFmt, price, qtyFmt, round2 } from '../lib/format';
 import { downloadInvoicePdf, invoiceDataFromDoc, printReceipt, whatsappInvoice } from '../lib/printer';
-import { Empty, Sheet, TopBar, useToast } from '../ui';
+import { CreditBlockSheet, Empty, Sheet, TopBar, isCreditBlock, useToast } from '../ui';
 
 const LABEL: Record<string, string> = { ORDER: 'Order', INVOICE: 'Invoice', QUOTE: 'Quote', RETURN: 'Return', DELIVERY: 'Delivery' };
 
@@ -95,6 +95,7 @@ export function OrderView() {
   const qc = useQueryClient();
   const { settings, profile, permissions } = useStore();
   const [busy, setBusy] = useState(false);
+  const [creditBlock, setCreditBlock] = useState<string | null>(null);
 
   const { data: d, refetch } = useQuery({
     queryKey: ['doc', id],
@@ -158,7 +159,7 @@ export function OrderView() {
       toast('ok', `${inv.doc_no} created`);
       qc.invalidateQueries();
       nav(`/orders/${inv.id}?new=1`, { replace: true });
-    } catch (e) { toast('err', (e as Error).message); } finally { setBusy(false); }
+    } catch (e) { const m = (e as Error).message; if (isCreditBlock(m)) setCreditBlock(m); else toast('err', m); } finally { setBusy(false); }
   }
 
   return (
@@ -233,7 +234,7 @@ export function OrderView() {
           )}
         </div>
       </div>
+      <CreditBlockSheet message={creditBlock} customerId={d.customer?.id} onClose={() => setCreditBlock(null)} />
     </div>
   );
 }
-

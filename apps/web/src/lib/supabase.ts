@@ -21,6 +21,7 @@ export function errorMessage(e: unknown): string {
   if (err.code === '23505') return 'This code / number already exists';
   if (err.code === '23503') return 'This record is linked to other data and cannot be changed this way';
   if (err.code === '42501') return err.message ?? 'You do not have permission for this action';
+  if (err.message?.startsWith('CREDIT_BLOCK')) return err.message.replace(/^CREDIT_BLOCK:\s*/, '⚠ Credit control: ');
   return err.message ?? 'Unexpected error';
 }
 
