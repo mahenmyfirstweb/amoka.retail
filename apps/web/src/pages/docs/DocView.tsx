@@ -1,4 +1,6 @@
-import { downloadInvoicePdf, invoiceDataFromDoc, printInvoice80, whatsappInvoice } from '../../lib/thermal';
+import { downloadInvoicePdf, invoiceDataFromDoc, invoiceHtml80, whatsappInvoice } from '../../lib/thermal';
+import { OutstandingPanel, PrintPreview } from '../../components/PrintPreview';
+import { printHtml } from '../../../../../packages/shared/receipts';
 import { BrandLogo } from '../../components/Brand';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
@@ -70,18 +72,20 @@ export default function DocView({ kind }: { kind: DocKind }) {
 
   // Customer's total outstanding (all invoices - returns - receipts), shown on invoice / return printouts.
   const showBalance = kind === 'sales' && !!doc?.customer_id && ['INVOICE', 'RETURN'].includes(doc?.type);
-  const { data: customerBalance } = useQuery({
-    queryKey: ['customer-outstanding', doc?.customer_id, doc?.updated_at],
-    enabled: showBalance,
-    queryFn: () => rpc<number>('customer_outstanding', { p_customer: doc!.customer_id }),
+  const { data: credit } = useQuery({
+    queryKey: ['credit-status', doc?.customer_id, doc?.updated_at],
+    enabled: kind === 'sales' && !!doc?.customer_id,
+    queryFn: () => rpc<Row>('customer_credit_status', { p_customer: doc!.customer_id, p_new_amount: 0 }),
   });
+  const customerBalance = showBalance && credit ? Number(credit.outstanding) : undefined;
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
 
   /** 80mm print / PDF / WhatsApp for sales documents (same layout as the salesman app). */
   async function thermal(action: 'print' | 'pdf' | 'whatsapp') {
     if (!doc) return;
     const data = invoiceDataFromDoc({ ...doc, customer: doc.party }, settings ?? null, showBalance ? customerBalance : undefined);
     try {
-      if (action === 'print') printInvoice80(data);
+      if (action === 'print') setPreviewHtml(invoiceHtml80(data));
       else if (action === 'pdf') await downloadInvoicePdf(data);
       else if ((await whatsappInvoice(data)) === 'fallback') toast('ok', 'PDF downloaded and WhatsApp opened — attach the PDF to send');
     } catch (e) {
@@ -155,6 +159,17 @@ export default function DocView({ kind }: { kind: DocKind }) {
       {doc.status === 'VOID' && (
         <div className="no-print mb-4"><ErrorBox error={`This document is VOID.${doc.void_reason ? ` Reason: ${doc.void_reason}` : ''}`} /></div>
       )}
+
+      {kind === 'sales' && <OutstandingPanel status={credit} currency={settings?.currency} />}
+
+      <PrintPreview
+        html={previewHtml}
+        title={`${t.label} ${doc.doc_no}`}
+        onClose={() => setPreviewHtml(null)}
+        onPrint={() => printHtml(previewHtml!)}
+        onPdf={() => thermal('pdf')}
+        onWhatsapp={() => thermal('whatsapp')}
+      />
 
       <div className="card print-area relative p-8 sm:p-10">
         {doc.status === 'VOID' && (

@@ -1,4 +1,5 @@
-import { downloadReceiptPdf, loadReceipt, printReceipt80, whatsappReceipt } from '../lib/thermal';
+import { downloadReceiptPdf, loadReceipt, printReceipt80, receiptHtml80, whatsappReceipt, type PaymentReceiptData } from '../lib/thermal';
+import { PrintPreview } from '../components/PrintPreview';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -258,6 +259,7 @@ export function PaymentView({ kind }: { kind: Kind }) {
   const toast = useToast();
   const { can } = useAuth();
   const { data: settings } = useSettings();
+  const [previewData, setPreviewData] = useState<PaymentReceiptData | null>(null);
   const { data: r, isLoading, refetch } = useQuery({
     queryKey: ['payment', kind, id],
     queryFn: async () => {
@@ -276,7 +278,7 @@ export function PaymentView({ kind }: { kind: Kind }) {
   async function thermal(action: 'print' | 'pdf' | 'whatsapp') {
     try {
       const data = await loadReceipt(r!.id, settings ?? null);
-      if (action === 'print') printReceipt80(data);
+      if (action === 'print') { setPreviewData(data); return; }
       else if (action === 'pdf') await downloadReceiptPdf(data);
       else if ((await whatsappReceipt(data)) === 'fallback') toast('ok', 'PDF downloaded and WhatsApp opened — attach the PDF to send');
     } catch (e) {
@@ -313,6 +315,7 @@ export function PaymentView({ kind }: { kind: Kind }) {
           {r.status !== 'VOID' && can('void_docs') && <button className="btn-ghost text-rose-600" onClick={doVoid}><Ban size={15} /> Void</button>}
         </div>
       </div>
+      <PrintPreview html={previewData ? receiptHtml80(previewData) : null} title={`Receipt ${previewData?.receipt.receipt_no ?? ""}`} onClose={() => setPreviewData(null)} onPrint={() => printReceipt80(previewData!)} onPdf={() => downloadReceiptPdf(previewData!)} onWhatsapp={() => whatsappReceipt(previewData!)} />
       <div className="card print-area p-8">
         <CompanyHeader settings={settings} title={c.printTitle} />
         {r.status === 'VOID' && <div className="mt-4"><Badge color="red">VOID</Badge></div>}

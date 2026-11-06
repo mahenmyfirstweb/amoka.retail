@@ -31,3 +31,7 @@ export async function downloadReceiptPdf(d: PaymentReceiptData) {
 export async function whatsappReceipt(d: PaymentReceiptData) {
   return shareToWhatsApp(await receiptPdf(d), `${safe(d.receipt.receipt_no)}.pdf`, shareMessage('receipt', d.settings, d.receipt.receipt_no, Number(d.receipt.amount)), d.customer?.phone);
 }
+
+/** HTML of the 80mm printouts, for the on-screen preview. */
+export const invoiceHtml80 = (d: InvoiceData) => toHtml(invoiceLayout(d, PAPER), PAPER);
+export const receiptHtml80 = (d: PaymentReceiptData) => toHtml(paymentLayout(d, PAPER), PAPER);

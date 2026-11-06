@@ -1,8 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router';
-import { AlertCircle, CheckCircle2, ChevronLeft, ClipboardList, Home, LayoutGrid, Menu, ShoppingCart, Store as StoreIcon, WifiOff, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, ChevronLeft, ClipboardList, FileDown, Home, LayoutGrid, Menu, MessageCircle, Printer, ShoppingCart, Store as StoreIcon, WifiOff, X } from 'lucide-react';
 import { useStore, type Row } from './lib/store';
 import { price } from './lib/format';
+import { daysSince, overdueAge } from '../../../packages/shared/receipts';
 
 // ---------- toast ----------
 const ToastCtx = createContext<(kind: 'ok' | 'err', text: string) => void>(() => {});
@@ -213,5 +214,84 @@ export function CreditBlockSheet({ message, customerId, onClose, onSaveAsOrder }
       </div>
       <p className="mt-3 text-xs text-ink-400">New credit invoices are allowed again once the payment is collected. Invoices paid in full now, and sales orders, can still be created.</p>
     </Sheet>
+  );
+}
+
+// ---------- Print preview ----------
+/** Shows the exact 80mm / 58mm printout before printing; Print / PDF / WhatsApp from here. */
+export function PrintPreview({ html, title = 'Print preview', onClose, onPrint, onPdf, onWhatsapp }: {
+  html: string | null;
+  title?: string;
+  onClose: () => void;
+  onPrint: () => Promise<unknown> | void;
+  onPdf?: () => Promise<unknown> | void;
+  onWhatsapp?: () => Promise<unknown> | void;
+}) {
+  const [height, setHeight] = useState(600);
+  const [busy, setBusy] = useState('');
+  const toast = useToast();
+  if (!html) return null;
+  const run = async (key: string, fn?: () => Promise<unknown> | void) => {
+    if (!fn) return;
+    setBusy(key);
+    try { await fn(); } catch (e) { toast('err', (e as Error).message); } finally { setBusy(''); }
+  };
+  return (
+    <div className="fixed inset-0 z-[60] flex flex-col bg-ink-950/80 backdrop-blur-sm">
+      <div className="flex items-center justify-between px-4 py-3 text-white safe-top">
+        <span className="font-semibold">{title}</span>
+        <button className="rounded-full p-2 active:bg-white/10" onClick={onClose}><X size={20} /></button>
+      </div>
+      <div className="flex-1 overflow-y-auto px-3 pb-4">
+        <div className="mx-auto w-fit rounded-md bg-white p-2 shadow-2xl">
+          <iframe
+            title="preview"
+            srcDoc={html.replace('<body>', '<body style="margin:0 auto">')}
+            className="block w-[310px] border-0 bg-white"
+            style={{ height }}
+            onLoad={(e) => {
+              const doc = e.currentTarget.contentDocument;
+              if (doc) setHeight(Math.max(300, doc.documentElement.scrollHeight + 8));
+            }}
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-2 bg-white p-3 safe-bottom">
+        <button className="btn-primary" disabled={!!busy} onClick={() => run('print', onPrint)}><Printer size={17} /> {busy === 'print' ? '…' : 'Print'}</button>
+        <button className="btn-secondary" disabled={!!busy || !onPdf} onClick={() => run('pdf', onPdf)}><FileDown size={17} /> PDF</button>
+        <button className="btn-secondary !text-emerald-700" disabled={!!busy || !onWhatsapp} onClick={() => run('wa', onWhatsapp)}><MessageCircle size={17} /> WhatsApp</button>
+      </div>
+    </div>
+  );
+}
+
+/** Highlighted outstanding + overdue panel for a shop. */
+export function OutstandingPanel({ status }: { status: Row | null | undefined }) {
+  if (!status) return null;
+  const overdue = Number(status.overdue_amount) > 0.004;
+  return (
+    <div className={`overflow-hidden rounded-2xl ring-1 ${overdue ? 'bg-rose-50 ring-rose-200' : 'bg-ink-900 ring-ink-900'}`}>
+      <div className={`flex items-end justify-between px-4 py-3 ${overdue ? 'bg-rose-600 text-white' : 'text-white'}`}>
+        <div>
+          <div className="text-[11px] uppercase tracking-wider opacity-80">Shop total outstanding</div>
+          <div className="font-display text-3xl font-semibold tabular-nums">{price(status.outstanding)}</div>
+        </div>
+        {Number(status.credit_limit) > 0 && (
+          <div className="text-right text-xs opacity-90">Limit {price(status.credit_limit)}<br />Available {price(status.available)}</div>
+        )}
+      </div>
+      {overdue ? (
+        <div className="grid grid-cols-2 gap-3 px-4 py-3 text-sm text-rose-800">
+          <div><div className="text-[11px] text-rose-500">Overdue amount</div><div className="text-lg font-semibold tabular-nums">{price(status.overdue_amount)}</div></div>
+          <div><div className="text-[11px] text-rose-500">Overdue invoices</div><div className="text-lg font-semibold">{status.overdue_count}</div></div>
+          <div className="col-span-2 rounded-xl bg-white px-3 py-2 ring-1 ring-rose-200">
+            <div className="text-[11px] text-rose-500">Overdue for (oldest, due {status.oldest_due ? new Date(status.oldest_due).toLocaleDateString('en-GB') : '—'})</div>
+            <div className="text-base font-bold">{overdueAge(status.oldest_due)} <span className="text-xs font-medium text-rose-500">({daysSince(status.oldest_due)} days)</span></div>
+          </div>
+        </div>
+      ) : (
+        <div className="px-4 pb-3 text-xs text-emerald-300">No overdue invoices</div>
+      )}
+    </div>
   );
 }

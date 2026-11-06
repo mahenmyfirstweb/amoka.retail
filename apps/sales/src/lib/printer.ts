@@ -115,3 +115,9 @@ export async function whatsappStatement(d: StatementData) {
   const closing = d.rows.length ? Number(d.rows[d.rows.length - 1].balance) : 0;
   return shareToWhatsApp(await statementPdf(d), `Statement_${safe(d.customer.name)}.pdf`, shareMessage('statement', d.settings, d.customer.name, closing, 'Balance due'), d.customer?.phone);
 }
+
+// ---------- on-screen print preview (same HTML that is printed) ----------
+export { overdueAge, daysSince } from '../../../../packages/shared/receipts';
+export const invoiceHtml = (d: InvoiceData) => toHtml(invoiceLayout(d, paperWidth()), paperWidth());
+export const receiptHtml = (d: PaymentReceiptData) => toHtml(paymentLayout(d, paperWidth()), paperWidth());
+export const statementHtml = (d: StatementData) => toHtml(statementLayout(d), paperWidth());

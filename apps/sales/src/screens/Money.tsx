@@ -6,8 +6,8 @@ import { CheckCircle2, Circle, FileDown, HandCoins, MessageCircle, Minus, Plus, 
 import { newClientRef, useStore, type Row } from '../lib/store';
 import { rpc, supabase } from '../lib/supabase';
 import { dateFmt, dateTimeFmt, isoDate, money, qtyFmt, round2 } from '../lib/format';
-import { downloadReceiptPdf, downloadStatementPdf, loadPaymentReceipt, printPaymentReceipt, printStatement, whatsappReceipt, whatsappStatement } from '../lib/printer';
-import { Empty, ProductImage, Sheet, TopBar, useToast } from '../ui';
+import { downloadReceiptPdf, downloadStatementPdf, loadPaymentReceipt, printPaymentReceipt, printStatement, receiptHtml, statementHtml, whatsappReceipt, whatsappStatement, type PaymentReceiptData } from '../lib/printer';
+import { Empty, PrintPreview, ProductImage, Sheet, TopBar, useToast } from '../ui';
 
 function useCustomer(id: string | undefined) {
   const { customers } = useStore();
@@ -47,6 +47,7 @@ export function Receipt() {
   const [reference, setReference] = useState('');
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<Row | null>(null);
+  const [previewData, setPreviewData] = useState<PaymentReceiptData | null>(null);
   const { data: balance, refetch: refetchBal } = useOutstanding(Number(customerId));
 
   const { data: invoices = [], isLoading } = useQuery({
@@ -104,7 +105,7 @@ export function Receipt() {
   async function receiptAction(action: 'print' | 'pdf' | 'whatsapp') {
     try {
       const data = await loadPaymentReceipt(supabase, done!.id, settings, profile?.full_name);
-      if (action === 'print') await printPaymentReceipt(data);
+      if (action === 'print') setPreviewData(data);
       else if (action === 'pdf') await downloadReceiptPdf(data);
       else if ((await whatsappReceipt(data)) === 'fallback') toast('ok', 'PDF downloaded — attach it in WhatsApp');
     } catch (e) { toast('err', (e as Error).message); }
@@ -167,6 +168,7 @@ export function Receipt() {
         </button>
       </div>
 
+      <PrintPreview html={previewData ? receiptHtml(previewData) : null} title={`Receipt ${previewData?.receipt.receipt_no ?? ''}`} onClose={() => setPreviewData(null)} onPrint={() => printPaymentReceipt(previewData!)} onPdf={() => downloadReceiptPdf(previewData!)} onWhatsapp={() => whatsappReceipt(previewData!)} />
       <Sheet open={!!done} onClose={() => nav(-1)} title={`Receipt ${done?.receipt_no ?? ''} saved`} footer={
         <div className="space-y-2"><div className="grid grid-cols-3 gap-2"><button className="btn-primary" onClick={() => receiptAction('print')}><Printer size={16} /> Print</button><button className="btn-secondary" onClick={() => receiptAction('pdf')}><FileDown size={16} /> PDF</button><button className="btn-secondary !text-emerald-700" onClick={() => receiptAction('whatsapp')}><MessageCircle size={16} /> WhatsApp</button></div><button className="btn-ghost w-full" onClick={() => nav('/')}>Done</button></div>
       }>
@@ -358,6 +360,7 @@ export function Statement() {
   const toast = useToast();
   const { settings } = useStore();
   const customer = useCustomer(customerId);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [from, setFrom] = useState(isoDate(new Date(new Date().getFullYear(), new Date().getMonth() - 2, 1)));
   const [to, setTo] = useState(isoDate());
   const { data: rows = [], isLoading, error } = useQuery({
@@ -369,7 +372,7 @@ export function Statement() {
 
   async function print() {
     if (!customer) return;
-    try { await printStatement({ settings, customer, from, to, rows: rows as never }); } catch (e) { toast('err', (e as Error).message); }
+    setPreviewOpen(true);
   }
   const stmt = () => ({ settings, customer: customer!, from, to, rows: rows as never });
   async function share() {
@@ -387,6 +390,7 @@ export function Statement() {
   return (
     <div className="pb-6">
       <TopBar title="Statement" back />
+      <PrintPreview html={previewOpen && customer ? statementHtml(stmt()) : null} title="Statement" onClose={() => setPreviewOpen(false)} onPrint={() => printStatement(stmt())} onPdf={() => downloadStatementPdf(stmt())} onWhatsapp={() => whatsappStatement(stmt())} />
       <div className="space-y-3 p-3">
         <div className="card p-4">
           <div className="font-semibold text-ink-900">{customer?.name}</div>
@@ -471,11 +475,12 @@ export function ReceiptsList() {
   const toast = useToast();
   const { online, settings, profile } = useStore();
   const [menu, setMenu] = useState<number | null>(null);
+  const [previewData, setPreviewData] = useState<PaymentReceiptData | null>(null);
   async function act(id: number, action: 'print' | 'pdf' | 'whatsapp') {
     setMenu(null);
     try {
       const data = await loadPaymentReceipt(supabase, id, settings, profile?.full_name);
-      if (action === 'print') await printPaymentReceipt(data);
+      if (action === 'print') setPreviewData(data);
       else if (action === 'pdf') await downloadReceiptPdf(data);
       else if ((await whatsappReceipt(data)) === 'fallback') toast('ok', 'PDF downloaded — attach it in WhatsApp');
     } catch (e) { toast('err', (e as Error).message); }
@@ -502,6 +507,7 @@ export function ReceiptsList() {
           ))}
         </div>
       )}
+      <PrintPreview html={previewData ? receiptHtml(previewData) : null} title={`Receipt ${previewData?.receipt.receipt_no ?? ''}`} onClose={() => setPreviewData(null)} onPrint={() => printPaymentReceipt(previewData!)} onPdf={() => downloadReceiptPdf(previewData!)} onWhatsapp={() => whatsappReceipt(previewData!)} />
       <Sheet open={menu !== null} onClose={() => setMenu(null)} title="Receipt">
         <div className="grid grid-cols-3 gap-2 pb-2">
           <button className="btn-primary" onClick={() => act(menu!, 'print')}><Printer size={16} /> Print</button>

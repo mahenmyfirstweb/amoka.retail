@@ -5,8 +5,8 @@ import { ClipboardList, CloudUpload, FileDown, FileText, HandCoins, MessageCircl
 import { useStore, type Row } from '../lib/store';
 import { rpc, supabase } from '../lib/supabase';
 import { dateFmt, dateTimeFmt, price, qtyFmt, round2 } from '../lib/format';
-import { downloadInvoicePdf, invoiceDataFromDoc, printReceipt, whatsappInvoice } from '../lib/printer';
-import { CreditBlockSheet, Empty, Sheet, TopBar, isCreditBlock, useToast } from '../ui';
+import { downloadInvoicePdf, invoiceDataFromDoc, invoiceHtml, printReceipt, whatsappInvoice } from '../lib/printer';
+import { CreditBlockSheet, Empty, OutstandingPanel, PrintPreview, Sheet, TopBar, isCreditBlock, useToast } from '../ui';
 
 const LABEL: Record<string, string> = { ORDER: 'Order', INVOICE: 'Invoice', QUOTE: 'Quote', RETURN: 'Return', DELIVERY: 'Delivery' };
 
@@ -111,11 +111,13 @@ export function OrderView() {
   });
 
   // Shop's total outstanding (invoices - returns - receipts), printed on invoices and returns.
-  const { data: custBal } = useQuery({
-    queryKey: ['cust-bal', d?.customer_id, d?.updated_at],
-    enabled: !!d?.customer_id && ['INVOICE', 'RETURN'].includes(d?.type),
-    queryFn: () => rpc<number>('customer_outstanding', { p_customer: d!.customer_id }),
+  const { data: credit } = useQuery({
+    queryKey: ['credit-status', d?.customer_id, d?.updated_at],
+    enabled: !!d?.customer_id,
+    queryFn: () => rpc<Row>('customer_credit_status', { p_customer: d!.customer_id, p_new_amount: 0 }),
   });
+  const custBal = credit && ['INVOICE', 'RETURN'].includes(d?.type) ? Number(credit.outstanding) : undefined;
+  const [preview, setPreview] = useState(false);
 
   const receiptData = useMemo(() => {
     if (!d) return null;
@@ -206,17 +208,14 @@ export function OrderView() {
             {d.type === 'RETURN' && (
               <div className="text-xs text-ink-500">Reason: {String(d.return_reason ?? '—').replace('_', ' ').toLowerCase()} · {d.restock ? 'back to stock' : 'written off'}</div>
             )}
-            {custBal !== undefined && custBal !== null && (
-              <div className="mt-2 flex justify-between rounded-xl bg-ink-900 px-3 py-2 font-semibold text-white">
-                <span>Shop total outstanding</span><span className="tabular-nums">{price(Number(custBal))}</span>
-              </div>
-            )}
           </div>
         </div>
 
+        <OutstandingPanel status={credit} />
+
         <div className="grid grid-cols-2 gap-2">
           <div className="col-span-2 grid grid-cols-3 gap-2">
-            <button className="btn-primary" onClick={print}><Printer size={17} /> Print</button>
+            <button className="btn-primary" onClick={() => setPreview(true)}><Printer size={17} /> Print</button>
             <button className="btn-secondary" onClick={pdf}><FileDown size={17} /> PDF</button>
             <button className="btn-secondary !text-emerald-700" disabled={busy} onClick={share}><MessageCircle size={17} /> WhatsApp</button>
           </div>
@@ -235,6 +234,14 @@ export function OrderView() {
         </div>
       </div>
       <CreditBlockSheet message={creditBlock} customerId={d.customer?.id} onClose={() => setCreditBlock(null)} />
+      <PrintPreview
+        html={preview && receiptData ? invoiceHtml(receiptData) : null}
+        title={`${LABEL[d.type] ?? 'Document'} ${d.doc_no}`}
+        onClose={() => setPreview(false)}
+        onPrint={() => printReceipt(receiptData!)}
+        onPdf={pdf}
+        onWhatsapp={share}
+      />
     </div>
   );
 }

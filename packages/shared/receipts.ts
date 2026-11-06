@@ -471,3 +471,42 @@ export function shareMessage(kind: 'invoice' | 'receipt' | 'statement', s: Row |
   const label = kind === 'invoice' ? 'Invoice' : kind === 'receipt' ? 'Receipt' : 'Statement';
   return `${s?.company_name ?? 'Amoka'}\n${label} ${no}\nAmount: ${cur} ${money(amount)}${extra ? `\n${extra}` : ''}\n\nPlease find the attached PDF. Thank you!`;
 }
+
+/**
+ * How long something is overdue, as months / weeks / days, e.g. "1 month 2 weeks 3 days".
+ * `from` = due date; counted up to today.
+ */
+export function overdueAge(from: string | Date | null | undefined, to: Date = new Date()): string {
+  if (!from) return '';
+  const a = new Date(from);
+  a.setHours(0, 0, 0, 0);
+  const b = new Date(to);
+  b.setHours(0, 0, 0, 0);
+  if (b <= a) return '0 days';
+  let months = (b.getFullYear() - a.getFullYear()) * 12 + (b.getMonth() - a.getMonth());
+  const anchorFor = (m: number) => {
+    const d = new Date(a);
+    d.setMonth(a.getMonth() + m);
+    return d;
+  };
+  let anchor = anchorFor(months);
+  if (anchor > b) {
+    months -= 1;
+    anchor = anchorFor(months);
+  }
+  const rest = Math.round((b.getTime() - anchor.getTime()) / 86400000);
+  const weeks = Math.floor(rest / 7);
+  const days = rest % 7;
+  const part = (n: number, w: string) => (n ? `${n} ${w}${n === 1 ? '' : 's'}` : '');
+  return [part(months, 'month'), part(weeks, 'week'), part(days, 'day')].filter(Boolean).join(' ') || '0 days';
+}
+
+/** Total days between a date and today. */
+export const daysSince = (from: string | Date | null | undefined, to: Date = new Date()) => {
+  if (!from) return 0;
+  const a = new Date(from);
+  a.setHours(0, 0, 0, 0);
+  const b = new Date(to);
+  b.setHours(0, 0, 0, 0);
+  return Math.max(0, Math.round((b.getTime() - a.getTime()) / 86400000));
+};
