@@ -49,12 +49,13 @@ export function IntakeList() {
         </div>
         {isLoading ? <Loading /> : error ? <div className="p-4"><ErrorBox error={error} /></div> : !data.length ? <Empty>No stock intakes yet</Empty> : (
           <table className="table">
-            <thead><tr><th>No.</th><th>Ready date</th><th>Shipment ref</th><th>Container</th><th>Arrival</th><th>Lot</th><th className="num">Products</th><th className="num">Qty shipped</th><th className="num">Added to stock</th><th>Status</th></tr></thead>
+            <thead><tr><th>No.</th><th>Ready date</th><th>From</th><th>Shipment ref</th><th>Container</th><th>Arrival</th><th>Lot</th><th className="num">Products</th><th className="num">Qty shipped</th><th className="num">Added to stock</th><th>Status</th></tr></thead>
             <tbody>
               {data.map((i) => (
                 <tr key={i.id}>
                   <td><Link className="font-medium hover:text-gold-600" to={`/intake/${i.id}`}>{i.intake_no}</Link></td>
                   <td>{dateFmt(i.ready_date)}</td>
+                  <td>{i.origin}</td>
                   <td>{i.shipment_ref}</td>
                   <td>{i.container_no}</td>
                   <td>{dateFmt(i.arrival_date)}</td>
@@ -100,6 +101,7 @@ export function IntakeEdit() {
   const { can } = useAuth();
   const [readyDate, setReadyDate] = useState(isoDate());
   const [ref, setRef] = useState('');
+  const [origin, setOrigin] = useState('');
   const [notes, setNotes] = useState('');
   const [lines, setLines] = useState<Line[]>([]);
   const [busy, setBusy] = useState(false);
@@ -109,7 +111,7 @@ export function IntakeEdit() {
     if (!id) return;
     supabase.from('stock_intakes').select('*, lines:stock_intake_lines(*, product:products(code, name, pcs_per_carton, uom:uoms(code)))').eq('id', Number(id)).single().then(({ data }) => {
       if (!data) return;
-      setReadyDate(data.ready_date); setRef(data.shipment_ref ?? ''); setNotes(data.notes ?? '');
+      setReadyDate(data.ready_date); setRef(data.shipment_ref ?? ''); setNotes(data.notes ?? ''); setOrigin(data.origin ?? '');
       setLines((data.lines as Row[]).sort((a, b) => a.line_no - b.line_no).map((l) => {
         const pcs0 = perCarton(l.product);
         const pcs = Number(l.pcs_per_carton) > 0 ? Number(l.pcs_per_carton) : pcs0;
@@ -125,12 +127,13 @@ export function IntakeEdit() {
 
   async function save(submit: boolean) {
     setError(null);
+    if (!origin.trim()) return setError('Select where the stock is received from (e.g. Madurai)');
     if (!lines.length) return setError('Add at least one product');
     if (lines.some((l) => !(joinQty(l.c, l.l, l.pcs) > 0))) return setError('Enter cartons or loose quantity for every product (or remove it)');
     setBusy(true);
     try {
       const doc = await rpc<Row>('save_stock_intake', {
-        p: { id: id ? Number(id) : null, ready_date: readyDate, shipment_ref: ref || null, notes: notes || null,
+        p: { id: id ? Number(id) : null, ready_date: readyDate, shipment_ref: ref || null, notes: notes || null, origin: origin || null,
              lines: lines.map((l) => ({ product_id: l.product_id, qty: joinQty(l.c, l.l, l.pcs), remarks: l.remarks || null, pcs_per_carton: l.pcs })) },
       });
       await rememberCartonSizes(lines.map((l) => ({ product_id: l.product_id, pcs: l.pcs, original: l.pcs0 })), can('products'));
@@ -158,6 +161,7 @@ export function IntakeEdit() {
           <div className="grid gap-4 md:grid-cols-4">
             <Field label="Intake No"><input className="input" disabled value={id ? '' : 'Auto'} /></Field>
             <Field label="Goods ready date"><input type="date" className="input" value={readyDate} onChange={(e) => setReadyDate(e.target.value)} /></Field>
+            <Field label="Receive from *"><OriginInput value={origin} onChange={setOrigin} /></Field>
             <Field label="Shipment / invoice reference"><input className="input" value={ref} onChange={(e) => setRef(e.target.value)} placeholder="e.g. EXP-2026-077" /></Field>
             <Field label="Remarks"><input className="input" value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
           </div>
@@ -209,7 +213,7 @@ export function IntakeView() {
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [h, setH] = useState({ location_id: 0, container_no: '', arrival_date: isoDate(), lot_no: '', review_note: '' });
+  const [h, setH] = useState({ location_id: 0, origin: '', container_no: '', arrival_date: isoDate(), lot_no: '', review_note: '' });
   const [lines, setLines] = useState<ALine[]>([]);
 
   const { data: doc, isLoading, refetch } = useQuery({
@@ -225,7 +229,7 @@ export function IntakeView() {
 
   useEffect(() => {
     if (!doc) return;
-    setH((x) => ({ ...x, location_id: doc.location_id ?? locationId ?? locations?.[0]?.id ?? 0, container_no: doc.container_no ?? '', lot_no: doc.lot_no ?? '', arrival_date: doc.arrival_date ?? isoDate() }));
+    setH((x) => ({ ...x, origin: doc.origin ?? '', location_id: doc.location_id ?? locationId ?? locations?.[0]?.id ?? 0, container_no: doc.container_no ?? '', lot_no: doc.lot_no ?? '', arrival_date: doc.arrival_date ?? isoDate() }));
     setLines((doc.lines as Row[]).sort((a, b) => a.line_no - b.line_no || a.id - b.id).map((l) => {
       const pcs = Number(l.pcs_per_carton) > 0 ? Number(l.pcs_per_carton) : perCarton(l.product);
       const r = splitQty(Number(l.received_qty ?? l.qty), pcs);
@@ -257,7 +261,7 @@ export function IntakeView() {
       await rpc('approve_stock_intake', {
         p_id: doc!.id,
         p: {
-          location_id: h.location_id || null, container_no: h.container_no, arrival_date: h.arrival_date, lot_no: h.lot_no || null, review_note: h.review_note || null,
+          location_id: h.location_id || null, origin: h.origin || null, container_no: h.container_no, arrival_date: h.arrival_date, lot_no: h.lot_no || null, review_note: h.review_note || null,
           lines: lines.map((l) => (l.extra && !l.id
             ? { product_id: l.product_id, deduct_qty: ded(l), deduct_reason: l.reason }
             : { id: l.id, received_qty: rec(l), deduct_qty: ded(l), deduct_reason: l.reason })),
@@ -322,10 +326,11 @@ export function IntakeView() {
         </div>
 
         {approving ? (
-          <div className="no-print mt-5 grid gap-4 rounded-2xl bg-gold-50 p-4 ring-1 ring-gold-200 md:grid-cols-4">
+          <div className="no-print mt-5 grid gap-4 rounded-2xl bg-gold-50 p-4 ring-1 ring-gold-200 md:grid-cols-5">
             <Field label="Container number *"><input className="input" value={h.container_no} onChange={(e) => setH({ ...h, container_no: e.target.value.toUpperCase() })} placeholder="e.g. MSKU1234567" /></Field>
             <Field label="Arrival date *"><input type="date" className="input" value={h.arrival_date} onChange={(e) => setH({ ...h, arrival_date: e.target.value })} /></Field>
             <Field label="Lot number"><input className="input" value={h.lot_no} onChange={(e) => setH({ ...h, lot_no: e.target.value.toUpperCase() })} placeholder="e.g. LOT-26-11" /></Field>
+            <Field label="Receive from"><OriginInput value={h.origin} onChange={(v) => setH({ ...h, origin: v })} /></Field>
             <Field label="Receive into">
               <select className="input" value={h.location_id} onChange={(e) => setH({ ...h, location_id: Number(e.target.value) })}>
                 {locations?.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
@@ -337,7 +342,7 @@ export function IntakeView() {
             <div><div className="text-xs text-emerald-700">Container</div><div className="font-semibold">{doc.container_no}</div></div>
             <div><div className="text-xs text-emerald-700">Arrival</div><div className="font-semibold">{dateFmt(doc.arrival_date)}</div></div>
             <div><div className="text-xs text-emerald-700">Lot</div><div className="font-semibold">{doc.lot_no || '—'}</div></div>
-            <div><div className="text-xs text-emerald-700">Into</div><div className="font-semibold">{doc.location?.name}</div></div>
+            <div><div className="text-xs text-emerald-700">From → Into</div><div className="font-semibold">{doc.origin ? `${doc.origin} → ` : ""}{doc.location?.name}</div></div>
             <div><div className="text-xs text-emerald-700">Approved</div><div className="font-semibold">{doc.approver?.full_name} · {dateFmt(doc.approved_at)}</div></div>
           </div>
         )}
@@ -408,6 +413,29 @@ export function IntakeView() {
         footer={<><button className="btn-secondary" onClick={() => setRejectOpen(false)}>Cancel</button><button className="btn-danger" onClick={reject}>Send back</button></>}>
         <Field label="Reason *"><input className="input" value={reason} onChange={(e) => setReason(e.target.value)} autoFocus /></Field>
       </Modal>
+    </div>
+  );
+}
+
+const DEFAULT_ORIGINS = ['Madurai', 'Singapore'];
+
+/** "Receive from" choice: Madurai / Singapore + any origin used before; a new one can be typed. */
+function OriginInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { data: used = [] } = useQuery({
+    queryKey: ['intake-origins'],
+    queryFn: async () => ((await supabase.from('stock_intakes').select('origin').not('origin', 'is', null).limit(500)).data ?? []).map((r) => String(r.origin)),
+    staleTime: 60_000,
+  });
+  const options = [...new Set([...DEFAULT_ORIGINS, ...used])].sort();
+  const custom = value && !options.includes(value);
+  return (
+    <div className="flex gap-2">
+      <select className="input" value={custom ? '__other' : value} onChange={(e) => onChange(e.target.value === '__other' ? ' ' : e.target.value)}>
+        <option value="">Select…</option>
+        {options.map((o) => <option key={o} value={o}>{o}</option>)}
+        <option value="__other">Other…</option>
+      </select>
+      {custom && <input className="input" autoFocus placeholder="Type place" value={value.trim()} onChange={(e) => onChange(e.target.value || ' ')} />}
     </div>
   );
 }
