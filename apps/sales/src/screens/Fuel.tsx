@@ -79,7 +79,7 @@ export default function Fuel() {
                     <div className="truncate text-xs text-ink-400">{dateTimeFmt(l.filled_at)}{l.station ? ` · ${l.station}` : ''}{l.odometer ? ` · ${l.odometer.toLocaleString()} km` : ''}</div>
                   </div>
                   <div className="text-right">
-                    <div className="font-semibold tabular-nums">{price(l.amount)}</div>
+                    <div className="font-semibold tabular-nums">{Number(l.amount) > 0 ? price(l.amount) : '—'}</div>
                     <div className="text-[10px] text-ink-400">{l.claim_id ? 'claimed' : String(l.paid_by).replace('_', ' ').toLowerCase()}</div>
                   </div>
                 </button>
@@ -114,8 +114,9 @@ function FuelForm({ init, vehicles, onClose, onSaved }: { init: Row; vehicles: R
   async function save() {
     if (!f.vehicle_id) return toast('err', 'Choose the vehicle');
     if (!(Number(f.litres) > 0)) return toast('err', 'Enter the litres');
-    if (!(Number(f.amount) > 0)) return toast('err', 'Enter the amount');
+    if (!f.station?.trim()) return toast('err', 'Enter the station');
     if (!file) return toast('err', 'Attach the proof (receipt / pump photo)');
+    if (ownMoney && f.claim && !(Number(f.amount) > 0)) return toast('err', 'Enter the amount to claim the refund');
     setBusy(true);
     try {
       const blob = await compress(file);
@@ -134,7 +135,7 @@ function FuelForm({ init, vehicles, onClose, onSaved }: { init: Row; vehicles: R
         claim_id = c.id;
       }
       const { error } = await supabase.from('fuel_logs').insert({
-        vehicle_id: Number(f.vehicle_id), filled_at: new Date(f.filled_at).toISOString(), litres: Number(f.litres), amount: Number(f.amount),
+        vehicle_id: Number(f.vehicle_id), filled_at: new Date(f.filled_at).toISOString(), litres: Number(f.litres), amount: Number(f.amount) || 0,
         odometer: f.odometer ? Number(f.odometer) : null, station: f.station?.trim() || null, paid_by: f.paid_by,
         receipt_path: path, notes: f.notes?.trim() || null, claim_id,
       });
@@ -157,13 +158,13 @@ function FuelForm({ init, vehicles, onClose, onSaved }: { init: Row; vehicles: R
         </label>
         <label className="block"><span className="label">When</span><input type="datetime-local" className="input" value={f.filled_at} max={localDateTime()} onChange={(e) => setF({ ...f, filled_at: e.target.value })} /></label>
         <div className="grid grid-cols-2 gap-3">
-          <label className="block"><span className="label">Litres</span><input className="input text-lg font-semibold" inputMode="decimal" placeholder="0.00" value={f.litres ?? ''} onChange={(e) => setF({ ...f, litres: e.target.value.replace(/[^0-9.]/g, '') })} /></label>
-          <label className="block"><span className="label">Amount ($)</span><input className="input text-lg font-semibold" inputMode="decimal" placeholder="0.00" value={f.amount ?? ''} onChange={(e) => setF({ ...f, amount: e.target.value.replace(/[^0-9.]/g, '') })} /></label>
+          <label className="block"><span className="label">Litres *</span><input className="input text-lg font-semibold" inputMode="decimal" placeholder="0.00" value={f.litres ?? ''} onChange={(e) => setF({ ...f, litres: e.target.value.replace(/[^0-9.]/g, '') })} /></label>
+          <label className="block"><span className="label">Amount ($) — optional</span><input className="input text-lg font-semibold" inputMode="decimal" placeholder="optional" value={f.amount ?? ''} onChange={(e) => setF({ ...f, amount: e.target.value.replace(/[^0-9.]/g, '') })} /></label>
         </div>
         {perL > 0 && <div className="-mt-2 text-xs text-ink-400">≈ {price(perL)} per litre</div>}
         <div className="grid grid-cols-2 gap-3">
           <label className="block"><span className="label">Odometer (km)</span><input className="input" inputMode="numeric" placeholder="optional" value={f.odometer ?? ''} onChange={(e) => setF({ ...f, odometer: e.target.value.replace(/[^0-9]/g, '') })} /></label>
-          <label className="block"><span className="label">Station</span><input className="input" placeholder="e.g. Shell Tuas" value={f.station ?? ''} onChange={(e) => setF({ ...f, station: e.target.value })} /></label>
+          <label className="block"><span className="label">Station *</span><input className="input" placeholder="e.g. Shell Tuas" value={f.station ?? ''} onChange={(e) => setF({ ...f, station: e.target.value })} /></label>
         </div>
         <div>
           <span className="label">Paid by</span>
@@ -207,7 +208,7 @@ function FuelView({ log, onClose }: { log: Row | null; onClose: () => void }) {
         <div className="flex justify-between"><span className="text-ink-500">Vehicle</span><b>{log.vehicle?.code} · {log.vehicle?.name}</b></div>
         <div className="flex justify-between"><span className="text-ink-500">When</span><b>{dateTimeFmt(log.filled_at)}</b></div>
         <div className="flex justify-between"><span className="text-ink-500">Litres</span><b>{Number(log.litres).toFixed(2)} L</b></div>
-        <div className="flex justify-between"><span className="text-ink-500">Amount</span><b>{price(log.amount)} ({price(Number(log.amount) / Number(log.litres))}/L)</b></div>
+        {Number(log.amount) > 0 && <div className="flex justify-between"><span className="text-ink-500">Amount</span><b>{price(log.amount)} ({price(Number(log.amount) / Number(log.litres))}/L)</b></div>}
         {log.odometer && <div className="flex justify-between"><span className="text-ink-500">Odometer</span><b>{Number(log.odometer).toLocaleString()} km</b></div>}
         {log.station && <div className="flex justify-between"><span className="text-ink-500">Station</span><b>{log.station}</b></div>}
         <div className="flex justify-between"><span className="text-ink-500">Paid by</span><b>{String(log.paid_by).replace('_', ' ').toLowerCase()}{log.claim_id ? ' · refund claimed' : ''}</b></div>

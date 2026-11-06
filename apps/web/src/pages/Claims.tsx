@@ -223,7 +223,7 @@ export function FuelReport() {
               {logs.data.map((l) => (
                 <tr key={l.id}>
                   <td className="font-medium">{l.log_no}</td><td className="whitespace-nowrap">{dateTimeFmt(l.filled_at)}</td><td>{l.vehicle?.code}</td><td>{l.user?.full_name}</td>
-                  <td className="num">{Number(l.litres).toFixed(2)}</td><td className="num">{money(l.amount)}</td><td className="num">{(Number(l.amount) / Number(l.litres)).toFixed(3)}</td>
+                  <td className="num">{Number(l.litres).toFixed(2)}</td><td className="num">{Number(l.amount) > 0 ? money(l.amount) : "—"}</td><td className="num">{Number(l.amount) > 0 ? (Number(l.amount) / Number(l.litres)).toFixed(3) : ""}</td>
                   <td className="num">{l.odometer ? Number(l.odometer).toLocaleString() : ''}</td><td>{l.station}</td>
                   <td>{String(l.paid_by).replace('_', ' ').toLowerCase()}{l.claim_id ? ' (claimed)' : ''}</td>
                   <td className="no-print">{l.receipt_path && <button className="btn-ghost btn-sm" onClick={() => setReceipt(l)}><Eye size={14} /> View</button>}</td>
