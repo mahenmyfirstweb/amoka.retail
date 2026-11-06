@@ -65,3 +65,13 @@ so for daily use deploy `apps/sales` to an HTTPS host (e.g. Vercel, Netlify or C
 
 Bluetooth printing works with BLE ESC/POS thermal printers (58 mm / 80 mm) from Chrome on Android.
 Other devices use the normal print dialog.
+
+## Live sites (Vercel, auto-deployed from `main`)
+
+| App | URL | Vercel root directory |
+|---|---|---|
+| Admin portal | https://amoka-retail.vercel.app | `apps/web` |
+| Salesman app (install on phones) | https://amoka-retail-sales.vercel.app | `apps/sales` |
+
+Both need `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in the Vercel project's environment variables.
+Every push to `main` redeploys both automatically.
