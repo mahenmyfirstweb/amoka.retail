@@ -51,6 +51,7 @@ interface Store {
   lastSync: string | null;
   syncing: boolean;
   refreshData: (force?: boolean) => Promise<void>;
+  refreshStock: () => Promise<void>;
 
   customer: Row | null;
   setCustomer: (c: Row | null) => Promise<void>;
@@ -150,6 +151,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   // ---------- master data ----------
   /** Downloads catalog, shops etc. Skipped if the copy on the device is recent, unless `force`. */
+  /** Quick refresh of stock quantities only (all locations) — keeps the catalog stock up to date. */
+  const refreshStock = useCallback(async () => {
+    if (!navigator.onLine) return;
+    const { data, error } = await supabase.from('stocks').select('product_id, location_id, qty').limit(100000);
+    if (error || !data) return;
+    const by = new Map<number, Row[]>();
+    for (const s of data) by.set(s.product_id, [...(by.get(s.product_id) ?? []), { location_id: s.location_id, qty: s.qty }]);
+    setProducts((ps) => {
+      const next = ps.map((p) => ({ ...p, stocks: by.get(p.id) ?? [] }));
+      LS.set('products', next);
+      return next;
+    });
+  }, []);
+
   const refreshData = useCallback(async (force = true) => {
     if (!navigator.onLine) return;
     const last = LS.get<string | null>('lastSync', null);
@@ -289,12 +304,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setProfile(null);
         setPermissions(new Set());
       },
-      settings, products, categories, customers, paymodes, lastSync, syncing, refreshData,
+      settings, products, categories, customers, paymodes, lastSync, syncing, refreshData, refreshStock,
       customer, setCustomer, priceFor,
       cart, addToCart, setQty, updateLine, clearCart, cartQty,
       pending, queueOrder, syncPending,
     }),
-    [ready, session, profile, permissions, online, settings, products, categories, customers, paymodes, lastSync, syncing, refreshData,
+    [ready, session, profile, permissions, online, settings, products, categories, customers, paymodes, lastSync, syncing, refreshData, refreshStock,
       customer, setCustomer, priceFor, cart, addToCart, setQty, updateLine, clearCart, cartQty, pending, queueOrder, syncPending],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

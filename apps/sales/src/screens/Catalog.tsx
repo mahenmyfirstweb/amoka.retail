@@ -1,11 +1,19 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '../lib/supabase';
 import { LayoutGrid, List, PackageSearch, RefreshCw, Search, X } from 'lucide-react';
 import { stockAt, useStore, type Row } from '../lib/store';
 import { price, qtyFmt } from '../lib/format';
 import { CustomerBar, Empty, ProductImage, Sheet, Stepper, TopBar } from '../ui';
 
 export default function Catalog() {
-  const { products, categories, priceFor, cartQty, addToCart, setQty, profile, refreshData, syncing } = useStore();
+  const { products, categories, priceFor, cartQty, addToCart, setQty, profile, refreshData, refreshStock, syncing } = useStore();
+  // Always show fresh stock: on open and every 2 minutes.
+  useEffect(() => {
+    refreshStock();
+    const t = setInterval(refreshStock, 120_000);
+    return () => clearInterval(t);
+  }, [refreshStock]);
   const [cat, setCat] = useState<number | null>(null);
   const [sub, setSub] = useState<number | null>(null);
   const [q, setQ] = useState('');
@@ -46,7 +54,7 @@ export default function Catalog() {
         title="Catalog"
         right={
           <div className="flex gap-1">
-            <button className="rounded-full p-2 active:bg-white/10" onClick={() => refreshData()} title="Refresh">
+            <button className="rounded-full p-2 active:bg-white/10" onClick={() => { refreshData(); refreshStock(); }} title="Refresh">
               <RefreshCw size={19} className={syncing ? 'animate-spin' : ''} />
             </button>
             <button className="rounded-full p-2 active:bg-white/10" onClick={() => toggleView(view === 'grid' ? 'list' : 'grid')}>
@@ -94,7 +102,7 @@ export default function Catalog() {
                 </div>
                 <div className="flex flex-1 flex-col p-3">
                   <div className="line-clamp-2 text-[13px] font-medium leading-snug text-ink-900">{p.name}</div>
-                  <div className={`mt-1 inline-flex items-center gap-1 text-[11px] font-medium ${stock > 0 ? 'text-emerald-700' : 'text-rose-600'}`}><span className={`h-1.5 w-1.5 rounded-full ${stock > 0 ? 'bg-emerald-500' : 'bg-rose-500'}`} />{stock > 0 ? `${qtyFmt(stock)} in stock` : 'Out of stock'}</div>
+                  <StockLine p={p} loc={loc} />
                   <div className="mt-auto flex items-center justify-between pt-2.5">
                     <div className="font-semibold tabular-nums text-ink-900">{price(priceFor(p))}</div>
                     {qty ? (
@@ -118,7 +126,7 @@ export default function Catalog() {
                 <ProductImage p={p} className="h-14 w-14 shrink-0 rounded-xl" />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium text-ink-900">{p.name}</div>
-                  <div className={`text-xs font-medium ${stock > 0 ? 'text-emerald-700' : 'text-rose-600'}`}>{stock > 0 ? `${qtyFmt(stock)} in stock` : 'Out of stock'}</div>
+                  <StockLine p={p} loc={loc} />
                   <div className="text-sm font-semibold tabular-nums">{price(priceFor(p))}</div>
                 </div>
                 {qty ? <Stepper size="sm" value={qty} onChange={(v) => setQty(p.id, v)} /> : (
@@ -197,6 +205,7 @@ function ProductSheet({ p, onClose }: { p: Row | null; onClose: () => void }) {
         <Info label="Unit" value={p.uom?.code ?? '—'} />
         <Info label="Per carton" value={carton ? qtyFmt(carton) : '—'} />
       </div>
+      <LocationStock p={p} myLoc={profile?.location_id} />
       {p.description && <p className="mt-4 whitespace-pre-line text-sm leading-relaxed text-ink-600">{p.description}</p>}
       {carton > 0 && (
         <button className="btn-secondary mt-4 w-full" onClick={() => addToCart(p, carton)}>+ Add 1 carton ({qtyFmt(carton)} {p.uom?.code ?? 'pcs'})</button>
@@ -210,6 +219,43 @@ function Info({ label, value }: { label: string; value: string }) {
     <div className="rounded-xl bg-ink-50 px-2 py-2.5">
       <div className="text-ink-400">{label}</div>
       <div className="mt-0.5 font-semibold text-ink-800">{value}</div>
+    </div>
+  );
+}
+
+/** Stock under the product name: here + other locations (e.g. warehouse). */
+function StockLine({ p, loc }: { p: Row; loc?: number | null }) {
+  const here = stockAt(p, loc);
+  const total = stockAt(p, null);
+  const other = Math.round((total - here) * 1000) / 1000;
+  if (total <= 0) return <div className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-rose-600"><span className="h-1.5 w-1.5 rounded-full bg-rose-500" />Out of stock</div>;
+  return (
+    <div className={`mt-1 flex flex-wrap items-center gap-x-1 text-[11px] font-medium ${here > 0 ? 'text-emerald-700' : 'text-amber-600'}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${here > 0 ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+      {loc ? `${qtyFmt(here)} in stock` : `${qtyFmt(total)} in stock`}
+      {loc && other > 0 && <span className="text-ink-400">· +{qtyFmt(other)} other locations</span>}
+    </div>
+  );
+}
+
+/** Per-location stock list in the product pop-up. */
+function LocationStock({ p, myLoc }: { p: Row; myLoc?: number | null }) {
+  const { data: locations = [] } = useQuery({
+    queryKey: ['locations-names'],
+    staleTime: 10 * 60_000,
+    queryFn: async () => (await supabase.from('locations').select('id, name').eq('is_active', true).order('name')).data ?? [],
+  });
+  const rows = (p.stocks ?? []).filter((s: Row) => Number(s.qty) !== 0);
+  if (!rows.length) return null;
+  return (
+    <div className="mt-3 rounded-xl bg-ink-50 p-3 text-xs">
+      <div className="mb-1 font-semibold text-ink-500">Stock by location</div>
+      {rows.map((s: Row) => (
+        <div key={s.location_id} className={`flex justify-between py-0.5 ${s.location_id === myLoc ? 'font-semibold text-ink-900' : 'text-ink-600'}`}>
+          <span>{locations.find((l) => l.id === s.location_id)?.name ?? `Location ${s.location_id}`}{s.location_id === myLoc ? ' (mine)' : ''}</span>
+          <span className="tabular-nums">{qtyFmt(s.qty)}</span>
+        </div>
+      ))}
     </div>
   );
 }
