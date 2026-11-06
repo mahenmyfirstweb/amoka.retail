@@ -4,7 +4,11 @@ import { Pencil, Plus } from 'lucide-react';
 import { like, useLookup, useSave, useTable, type Row } from '../lib/data';
 import { useAuth } from '../lib/auth';
 import { dateTimeFmt, money, qtyFmt } from '../lib/format';
-import { Badge, Empty, ErrorBox, Loading, Modal, PageHeader, Pager, SearchInput, Tabs, useToast } from '../components/ui';
+import { Badge, Empty, ErrorBox, Field, Loading, Modal, PageHeader, Pager, SearchInput, Tabs, useToast } from '../components/ui';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '../lib/supabase';
+import { ProductPicker } from '../components/Pickers';
+import { QtyCells, perCarton } from '../components/CartonQty';
 import { RecordForm } from './MasterPage';
 import { ProductImages } from '../components/ProductImages';
 
@@ -345,45 +349,148 @@ export function PriceChanges() {
 
 export function StockMovements() {
   const { data: locations } = useLookup('locations');
+  const { data: categories } = useLookup('categories', 'id, code, name, parent_id');
   const [locationId, setLocationId] = useState('');
   const [type, setType] = useState('');
+  const [categoryId, setCategoryId] = useState('');
+  const [product, setProduct] = useState<Row | null>(null);
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
   const [page, setPage] = useState(1);
+  const reset = () => setPage(1);
+
+  // Category filter: the category itself + its sub categories.
+  const catIds = categoryId ? [Number(categoryId), ...(categories ?? []).filter((c) => c.parent_id === Number(categoryId)).map((c) => c.id)] : null;
+
+  const applyFilters = <T,>(q: T): T => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let x = q as any;
+    if (locationId) x = x.eq('location_id', Number(locationId));
+    if (type) x = x.eq('type', type);
+    if (product) x = x.eq('product_id', product.id);
+    if (catIds) x = x.in('product.category_id', catIds);
+    if (from) x = x.gte('created_at', `${from}T00:00:00+08:00`);
+    if (to) x = x.lte('created_at', `${to}T23:59:59+08:00`);
+    return x as T;
+  };
+
   const list = useTable('stock_movements', {
-    select: '*, product:products(code, name), location:locations(name)',
-    key: [locationId, type, page],
-    build: (q) => {
-      if (locationId) q = q.eq('location_id', Number(locationId));
-      if (type) q = q.eq('type', type);
-      return q.order('id', { ascending: false }).range((page - 1) * PAGE, page * PAGE - 1);
+    select: '*, product:products!inner(code, name, category_id, pcs_per_carton, category:categories(name)), location:locations(name)',
+    key: [locationId, type, categoryId, product?.id, from, to, page],
+    build: (q) => applyFilters(q).order('id', { ascending: false }).range((page - 1) * PAGE, page * PAGE - 1),
+  });
+
+  // Totals for ALL filtered rows (not just this page).
+  const { data: totals } = useQuery({
+    queryKey: ['movement-totals', locationId, type, categoryId, product?.id, from, to],
+    queryFn: async () => {
+      const q = applyFilters(supabase.from('stock_movements').select('qty, product:products!inner(category_id)')).limit(100000);
+      const { data } = await q;
+      let inQ = 0;
+      let outQ = 0;
+      for (const r of (data ?? []) as Row[]) {
+        const n = Number(r.qty);
+        if (n > 0) inQ += n; else outQ += n;
+      }
+      return { inQ, outQ, net: inQ + outQ, count: (data ?? []).length };
     },
   });
+
+  // Current balance per location for the chosen product.
+  const { data: balance = [] } = useQuery({
+    queryKey: ['product-balance', product?.id],
+    enabled: !!product,
+    queryFn: async () => (await supabase.from('stocks').select('qty, location:locations(id, name)').eq('product_id', product!.id)).data ?? [],
+  });
+  const pcs = perCarton(product);
+
   return (
     <div>
-      <PageHeader title="Stock Movements" subtitle="Every stock in / out, with running balance" />
-      <div className="card overflow-hidden">
-        <div className="flex flex-wrap gap-2 border-b border-ink-100 p-3">
-          <select className="input w-52" value={locationId} onChange={(e) => { setLocationId(e.target.value); setPage(1); }}>
+      <PageHeader
+        title="Stock Movements"
+        subtitle="Every stock in / out with running balance — filter by category, product, location, type and date"
+        actions={<ExportButtons title="Stock Movements" subtitle={[product ? `${product.code} ${product.name}` : '', categoryId ? categories?.find((c) => c.id === Number(categoryId))?.name : '', from && `from ${from}`, to && `to ${to}`].filter(Boolean).join(' · ')} landscape />}
+      />
+      <div className="card no-print mb-4 grid gap-3 p-3 md:grid-cols-6">
+        <Field label="Category">
+          <select className="input" value={categoryId} onChange={(e) => { setCategoryId(e.target.value); setProduct(null); reset(); }}>
+            <option value="">All categories</option>
+            {categories?.filter((c) => !c.parent_id).map((c) => (
+              <optgroup key={c.id} label={c.name}>
+                <option value={c.id}>{c.name} (all)</option>
+                {categories.filter((s) => s.parent_id === c.id).map((s) => <option key={s.id} value={s.id}>— {s.name}</option>)}
+              </optgroup>
+            ))}
+          </select>
+        </Field>
+        <Field label="Product" className="md:col-span-2">
+          {product ? (
+            <div className="flex items-center gap-2">
+              <div className="input flex-1 truncate"><b>{product.code}</b> · {product.name}</div>
+              <button className="btn-ghost btn-sm" onClick={() => { setProduct(null); reset(); }}>Clear</button>
+            </div>
+          ) : <ProductPicker onPick={(p) => { setProduct(p); reset(); }} placeholder="All products — search to filter" />}
+        </Field>
+        <Field label="Location">
+          <select className="input" value={locationId} onChange={(e) => { setLocationId(e.target.value); reset(); }}>
             <option value="">All locations</option>
             {locations?.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
-          <select className="input w-52" value={type} onChange={(e) => { setType(e.target.value); setPage(1); }}>
+        </Field>
+        <Field label="Type">
+          <select className="input" value={type} onChange={(e) => { setType(e.target.value); reset(); }}>
             <option value="">All types</option>
-            {['SALE', 'SALE_RETURN', 'GRN', 'PURCHASE_RETURN', 'TRANSFER_IN', 'TRANSFER_OUT', 'ADJUST', 'STOCKTAKE', 'VOID'].map((t) => <option key={t}>{t}</option>)}
+            {['SALE', 'SALE_RETURN', 'GRN', 'PURCHASE_RETURN', 'INTAKE', 'TRANSFER_IN', 'TRANSFER_OUT', 'ADJUST', 'STOCKTAKE', 'WRITE_OFF', 'VOID'].map((t) => <option key={t}>{t}</option>)}
           </select>
+        </Field>
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="From"><input type="date" className="input px-2" value={from} onChange={(e) => { setFrom(e.target.value); reset(); }} /></Field>
+          <Field label="To"><input type="date" className="input px-2" value={to} onChange={(e) => { setTo(e.target.value); reset(); }} /></Field>
         </div>
-        {list.isLoading ? <Loading /> : !list.data?.items.length ? <Empty /> : (
+      </div>
+
+      <div className="no-print mb-4 grid gap-3 sm:grid-cols-4">
+        <div className="card p-4"><div className="text-xs text-ink-400">Movements</div><div className="text-xl font-semibold">{totals?.count ?? '—'}</div></div>
+        <div className="card p-4"><div className="text-xs text-ink-400">Total in</div><div className="text-xl font-semibold text-emerald-700">+{qtyFmt(totals?.inQ ?? 0)}</div></div>
+        <div className="card p-4"><div className="text-xs text-ink-400">Total out</div><div className="text-xl font-semibold text-rose-600">{qtyFmt(totals?.outQ ?? 0)}</div></div>
+        <div className="card p-4"><div className="text-xs text-ink-400">Net change</div><div className="text-xl font-semibold">{(totals?.net ?? 0) > 0 ? '+' : ''}{qtyFmt(totals?.net ?? 0)}</div></div>
+      </div>
+
+      {product && (
+        <div className="card no-print mb-4 overflow-hidden">
+          <div className="flex items-center justify-between bg-ink-900 px-4 py-2.5 text-white">
+            <span className="font-semibold">Current stock balance · {product.code} {product.name}</span>
+            <span className="text-xs text-gold-300">PcsPerCarton: {pcs}</span>
+          </div>
           <table className="table">
-            <thead><tr><th>Date</th><th>Product</th><th>Location</th><th>Type</th><th>Ref</th><th className="num">Qty</th><th className="num">Balance</th></tr></thead>
+            <thead><tr><th>Location</th><th className="num">CQty</th><th className="num">LQty</th><th className="num">Qty</th></tr></thead>
+            <tbody>
+              {balance.map((b: Row) => <tr key={b.location?.id}><td>{b.location?.name}</td><QtyCells qty={Number(b.qty)} pcs={pcs} /></tr>)}
+              {!balance.length && <tr><td colSpan={4} className="py-4 text-center text-ink-400">No stock recorded</td></tr>}
+            </tbody>
+            {balance.length > 1 && (
+              <tfoot><tr className="font-semibold"><td className="px-3 py-2.5">Total</td><QtyCells qty={balance.reduce((s: number, b: Row) => s + Number(b.qty), 0)} pcs={pcs} /></tr></tfoot>
+            )}
+          </table>
+        </div>
+      )}
+
+      <div className="card overflow-hidden" data-report>
+        {list.isLoading ? <Loading /> : list.error ? <div className="p-4"><ErrorBox error={list.error} /></div> : !list.data?.items.length ? <Empty>No movements for these filters</Empty> : (
+          <table className="table">
+            <thead><tr><th>Date</th><th>Product</th><th>Category</th><th>Location</th><th>Type</th><th>Ref</th><th>Note</th><th className="num">Qty</th><th className="num">Balance</th></tr></thead>
             <tbody>
               {list.data.items.map((m) => (
                 <tr key={m.id}>
                   <td className="whitespace-nowrap">{dateTimeFmt(m.created_at)}</td>
                   <td>{m.product?.code} · {m.product?.name}</td>
+                  <td>{m.product?.category?.name}</td>
                   <td>{m.location?.name}</td>
                   <td><Badge>{m.type}</Badge></td>
                   <td>{m.ref_no}</td>
-                  <td className={`num ${m.qty < 0 ? 'text-rose-600' : 'text-emerald-700'}`}>{qtyFmt(m.qty)}</td>
-                  <td className="num">{qtyFmt(m.balance)}</td>
+                  <td className="max-w-xs truncate text-xs text-ink-500" title={m.note ?? ''}>{m.note}</td>
+                  <td className={`num ${m.qty < 0 ? 'text-rose-600' : 'text-emerald-700'}`}>{m.qty > 0 ? '+' : ''}{qtyFmt(m.qty)}</td>
+                  <td className="num font-medium">{qtyFmt(m.balance)}</td>
                 </tr>
               ))}
             </tbody>
