@@ -101,7 +101,7 @@ export default function Fuel() {
   );
 }
 
-function FuelForm({ init, vehicles, onClose, onSaved }: { init: Row; vehicles: Row[]; onClose: () => void; onSaved: () => void }) {
+export function FuelForm({ init, vehicles, onClose, onSaved }: { init: Row; vehicles: Row[]; onClose: () => void; onSaved: () => void }) {
   const { profile } = useStore();
   const toast = useToast();
   const [f, setF] = useState<Row>(init);
@@ -152,31 +152,31 @@ function FuelForm({ init, vehicles, onClose, onSaved }: { init: Row; vehicles: R
     <Sheet open onClose={onClose} title="New diesel top-up" footer={<button className="btn-gold w-full py-3.5" disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save top-up'}</button>}>
       <div className="space-y-4">
         <label className="block"><span className="label">Vehicle</span>
-          <select className="input" value={f.vehicle_id ?? ''} onChange={(e) => setF({ ...f, vehicle_id: e.target.value })}>
+          <select className="input" value={f.vehicle_id ?? ''} onChange={(e) => setF((prev) => ({ ...prev, vehicle_id: e.target.value }))}>
             {vehicles.map((v) => <option key={v.id} value={v.id}>{v.code} · {v.name}</option>)}
           </select>
         </label>
-        <label className="block"><span className="label">When</span><input type="datetime-local" className="input" value={f.filled_at} max={localDateTime()} onChange={(e) => setF({ ...f, filled_at: e.target.value })} /></label>
+        <label className="block"><span className="label">When</span><input type="datetime-local" className="input" value={f.filled_at} max={localDateTime()} onChange={(e) => setF((prev) => ({ ...prev, filled_at: e.target.value }))} /></label>
         <div className="grid grid-cols-2 gap-3">
-          <label className="block"><span className="label">Litres *</span><input className="input text-lg font-semibold" inputMode="decimal" placeholder="0.00" value={f.litres ?? ''} onChange={(e) => setF({ ...f, litres: e.target.value.replace(/[^0-9.]/g, '') })} /></label>
-          <label className="block"><span className="label">Amount ($) — optional</span><input className="input text-lg font-semibold" inputMode="decimal" placeholder="optional" value={f.amount ?? ''} onChange={(e) => setF({ ...f, amount: e.target.value.replace(/[^0-9.]/g, '') })} /></label>
+          <label className="block"><span className="label">Litres *</span><input className="input text-lg font-semibold" inputMode="decimal" placeholder="0.00" value={f.litres ?? ''} onChange={(e) => setF((prev) => ({ ...prev, litres: e.target.value.replace(/[^0-9.]/g, '') }))} /></label>
+          <label className="block"><span className="label">Amount ($) — optional</span><input className="input text-lg font-semibold" inputMode="decimal" placeholder="optional" value={f.amount ?? ''} onChange={(e) => setF((prev) => ({ ...prev, amount: e.target.value.replace(/[^0-9.]/g, '') }))} /></label>
         </div>
         {perL > 0 && <div className="-mt-2 text-xs text-ink-400">≈ {price(perL)} per litre</div>}
         <div className="grid grid-cols-2 gap-3">
-          <label className="block"><span className="label">Odometer (km)</span><input className="input" inputMode="numeric" placeholder="optional" value={f.odometer ?? ''} onChange={(e) => setF({ ...f, odometer: e.target.value.replace(/[^0-9]/g, '') })} /></label>
-          <label className="block"><span className="label">Station *</span><input className="input" placeholder="e.g. Shell Tuas" value={f.station ?? ''} onChange={(e) => setF({ ...f, station: e.target.value })} /></label>
+          <label className="block"><span className="label">Odometer (km)</span><input className="input" inputMode="numeric" placeholder="optional" value={f.odometer ?? ''} onChange={(e) => setF((prev) => ({ ...prev, odometer: e.target.value.replace(/[^0-9]/g, '') }))} /></label>
+          <label className="block"><span className="label">Station *</span><input className="input" placeholder="e.g. Shell Tuas" value={f.station ?? ''} onChange={(e) => setF((prev) => ({ ...prev, station: e.target.value }))} /></label>
         </div>
         <div>
           <span className="label">Paid by</span>
           <div className="grid grid-cols-2 gap-2">
             {PAID_BY.map(([k, l]) => (
-              <button key={k} type="button" className={`rounded-xl py-2.5 text-xs font-semibold ${f.paid_by === k ? 'bg-ink-900 text-white' : 'bg-ink-50 text-ink-600'}`} onClick={() => setF({ ...f, paid_by: k, claim: k !== 'COMPANY_CARD' })}>{l}</button>
+              <button key={k} type="button" className={`rounded-xl py-2.5 text-xs font-semibold ${f.paid_by === k ? 'bg-ink-900 text-white' : 'bg-ink-50 text-ink-600'}`} onClick={() => setF((prev) => ({ ...prev, paid_by: k, claim: k !== 'COMPANY_CARD' }))}>{l}</button>
             ))}
           </div>
           {ownMoney && (
             <label className="mt-2 flex items-center justify-between rounded-xl bg-gold-50 px-3 py-2.5 text-sm">
               <span>Claim refund (adds to my expenses)</span>
-              <input type="checkbox" className="h-5 w-5 accent-ink-900" checked={!!f.claim} onChange={(e) => setF({ ...f, claim: e.target.checked })} />
+              <input type="checkbox" className="h-5 w-5 accent-ink-900" checked={!!f.claim} onChange={(e) => setF((prev) => ({ ...prev, claim: e.target.checked }))} />
             </label>
           )}
         </div>
@@ -189,7 +189,7 @@ function FuelForm({ init, vehicles, onClose, onSaved }: { init: Row; vehicles: R
             <label className="btn-secondary cursor-pointer"><ImageIcon size={16} /> Gallery / PDF<input type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => { const x = e.target.files?.[0]; if (x) { setFile(x); setPreview(x.type.startsWith('image/') ? URL.createObjectURL(x) : null); } }} /></label>
           </div>
         </div>
-        <label className="block"><span className="label">Notes</span><input className="input" value={f.notes ?? ''} onChange={(e) => setF({ ...f, notes: e.target.value })} /></label>
+        <label className="block"><span className="label">Notes</span><input className="input" value={f.notes ?? ''} onChange={(e) => setF((prev) => ({ ...prev, notes: e.target.value }))} /></label>
       </div>
     </Sheet>
   );

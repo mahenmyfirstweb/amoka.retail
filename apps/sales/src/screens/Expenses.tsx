@@ -213,22 +213,22 @@ function ClaimForm({ claim, onClose, onSaved }: { claim: Row | null; onClose: ()
           <span className="label">Expense type</span>
           <div className="grid grid-cols-2 gap-2">
             {EXPENSE_CATEGORIES.map(([k, l, i]) => (
-              <button key={k} type="button" className={`flex items-center gap-2 rounded-xl px-3 py-2.5 text-left text-[13px] font-medium ${f.category === k ? 'bg-ink-900 text-white' : 'bg-ink-50 text-ink-700'}`} onClick={() => setF({ ...f, category: k })}>
+              <button key={k} type="button" className={`flex items-center gap-2 rounded-xl px-3 py-2.5 text-left text-[13px] font-medium ${f.category === k ? 'bg-ink-900 text-white' : 'bg-ink-50 text-ink-700'}`} onClick={() => setF((prev) => ({ ...prev, category: k }))}>
                 <span className="text-base">{i}</span>{l}
               </button>
             ))}
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <label className="block"><span className="label">Date</span><input type="date" className="input" value={f.claim_date ?? ''} max={isoDate()} onChange={(e) => setF({ ...f, claim_date: e.target.value })} /></label>
-          <label className="block"><span className="label">Amount ($)</span><input className="input text-lg font-semibold" inputMode="decimal" placeholder="0.00" value={f.amount ?? ''} onChange={(e) => setF({ ...f, amount: e.target.value.replace(/[^0-9.]/g, '') })} /></label>
+          <label className="block"><span className="label">Date</span><input type="date" className="input" value={f.claim_date ?? ''} max={isoDate()} onChange={(e) => setF((prev) => ({ ...prev, claim_date: e.target.value }))} /></label>
+          <label className="block"><span className="label">Amount ($)</span><input className="input text-lg font-semibold" inputMode="decimal" placeholder="0.00" value={f.amount ?? ''} onChange={(e) => setF((prev) => ({ ...prev, amount: e.target.value.replace(/[^0-9.]/g, '') }))} /></label>
         </div>
-        <label className="block"><span className="label">Description</span><input className="input" placeholder="e.g. EZ-link top-up, 2 notebooks + pens" value={f.description ?? ''} onChange={(e) => setF({ ...f, description: e.target.value })} /></label>
+        <label className="block"><span className="label">Description</span><input className="input" placeholder="e.g. EZ-link top-up, 2 notebooks + pens" value={f.description ?? ''} onChange={(e) => setF((prev) => ({ ...prev, description: e.target.value }))} /></label>
         <div>
           <span className="label">I paid by</span>
           <div className="grid grid-cols-4 gap-2">
             {PAID_BY.map(([k, l]) => (
-              <button key={k} type="button" className={`rounded-xl py-2 text-xs font-semibold ${f.paid_by === k ? 'bg-ink-900 text-white' : 'bg-ink-50 text-ink-600'}`} onClick={() => setF({ ...f, paid_by: k })}>{l}</button>
+              <button key={k} type="button" className={`rounded-xl py-2 text-xs font-semibold ${f.paid_by === k ? 'bg-ink-900 text-white' : 'bg-ink-50 text-ink-600'}`} onClick={() => setF((prev) => ({ ...prev, paid_by: k }))}>{l}</button>
             ))}
           </div>
         </div>
