@@ -175,65 +175,160 @@ export function ExpenseClaims() {
 // =====================================================================
 export function FuelReport() {
   const [month, setMonth] = useState(isoDate().slice(0, 7));
-  const [tab, setTab] = useState('summary');
+  const [tab, setTab] = useState('logs');
   const [receipt, setReceipt] = useState<Row | null>(null);
   const { from, to } = monthRange(month);
-  const summary = useQuery({ queryKey: ['fuel-report', from, to], queryFn: () => rpc<Row[]>('report_fuel', { p_from: from, p_to: to }) });
-  const logs = useQuery({
-    queryKey: ['fuel-logs', from, to],
-    enabled: tab === 'logs',
-    queryFn: async () => {
-      const { data, error } = await supabase.from('fuel_logs').select('*, vehicle:vehicles(code, name), user:profiles!fuel_logs_user_id_fkey(full_name)')
-        .gte('filled_at', `${from}T00:00:00+08:00`).lte('filled_at', `${to}T23:59:59+08:00`).order('filled_at');
-      if (error) throw new Error(error.message);
-      return data as Row[];
-    },
-  });
+  const summary = useQuery({ queryKey: ['fuel-report', from, to], enabled: tab === 'vehicle', queryFn: () => rpc<Row[]>('report_fuel', { p_from: from, p_to: to }) });
+  const logs = useQuery({ queryKey: ['fuel-logs', from, to], enabled: tab !== 'vehicle', queryFn: () => rpc<Row[]>('report_fuel_logs', { p_from: from, p_to: to }) });
+
+  const bySalesman = useMemo(() => {
+    const m = new Map<string, { name: string; fills: number; litres: number; amount: number; km: number; kmLitres: number }>();
+    for (const l of logs.data ?? []) {
+      const e = m.get(l.user_id) ?? { name: l.driver ?? '—', fills: 0, litres: 0, amount: 0, km: 0, kmLitres: 0 };
+      e.fills += 1;
+      e.litres += Number(l.litres);
+      e.amount += Number(l.amount);
+      if (l.km) {
+        e.km += Number(l.km);
+        e.kmLitres += Number(l.litres);
+      }
+      m.set(l.user_id, e);
+    }
+    return [...m.values()].sort((a, b) => b.km - a.km);
+  }, [logs.data]);
+
   const s = summary.data ?? [];
-  const tot = s.reduce((a, r) => ({ fills: a.fills + Number(r.fills), litres: a.litres + Number(r.litres), amount: a.amount + Number(r.amount) }), { fills: 0, litres: 0, amount: 0 });
+  const L = logs.data ?? [];
+  const tot = (rows: Row[]) =>
+    rows.reduce(
+      (a, r) => ({ fills: a.fills + Number(r.fills ?? 1), litres: a.litres + Number(r.litres), amount: a.amount + Number(r.amount), km: a.km + Number(r.km ?? 0) }),
+      { fills: 0, litres: 0, amount: 0, km: 0 },
+    );
+  const tl = tot(L);
+  const ts = tot(s);
+  const days = (d: unknown) => (d === null || d === undefined ? '' : `${Number(d) % 1 === 0 ? Number(d) : Number(d).toFixed(1)} d`);
+  const tabName = tab === 'logs' ? 'top-ups & km' : tab === 'salesman' ? 'by salesman' : 'by vehicle';
 
   return (
     <div>
-      <PageHeader title="Diesel / Fuel Report" subtitle="Top-ups per vehicle with proof" actions={<ExportButtons title={`Fuel report ${tab === 'logs' ? '(all top-ups)' : '(by vehicle)'}`} subtitle={month} landscape />} />
+      <PageHeader
+        title="Diesel / Fuel Report"
+        subtitle="Km driven between top-ups (from odometer readings), litres and proof"
+        actions={<ExportButtons title={`Fuel report - ${tabName}`} subtitle={month} landscape />}
+      />
       <div className="no-print flex flex-wrap items-end gap-3">
-        <Tabs tabs={[{ key: 'summary', label: 'By vehicle' }, { key: 'logs', label: 'All top-ups' }]} value={tab} onChange={setTab} />
+        <Tabs tabs={[{ key: 'logs', label: 'Top-ups & km driven' }, { key: 'salesman', label: 'By salesman' }, { key: 'vehicle', label: 'By vehicle' }]} value={tab} onChange={setTab} />
         <div className="mb-4"><input type="month" className="input" value={month} onChange={(e) => setMonth(e.target.value)} /></div>
       </div>
       <div className="card overflow-hidden" data-report>
-        {tab === 'summary' ? (
+        {tab === 'vehicle' ? (
           summary.isLoading ? <Loading /> : summary.error ? <div className="p-4"><ErrorBox error={summary.error} /></div> : !s.length ? <Empty>No top-ups this month</Empty> : (
             <table className="table">
               <thead><tr><th>Vehicle</th><th>Model</th><th className="num">Top-ups</th><th className="num">Litres</th><th className="num">Amount</th><th className="num">Avg $/L</th><th className="num">Km driven</th><th className="num">Km / L</th></tr></thead>
               <tbody>
                 {s.map((r) => (
                   <tr key={r.vehicle_id}>
-                    <td className="font-medium">{r.vehicle}</td><td>{r.name}</td>
-                    <td className="num">{r.fills}</td><td className="num">{Number(r.litres).toFixed(2)}</td><td className="num font-medium">{money(r.amount)}</td>
-                    <td className="num">{r.avg_price ? Number(r.avg_price).toFixed(3) : ''}</td><td className="num">{r.km ? Number(r.km).toLocaleString() : ''}</td><td className="num">{r.km_per_litre ?? ''}</td>
+                    <td className="font-medium">{r.vehicle}</td>
+                    <td>{r.name}</td>
+                    <td className="num">{r.fills}</td>
+                    <td className="num">{Number(r.litres).toFixed(2)}</td>
+                    <td className="num font-medium">{money(r.amount)}</td>
+                    <td className="num">{r.avg_price ? Number(r.avg_price).toFixed(3) : ''}</td>
+                    <td className="num">{r.km ? Number(r.km).toLocaleString() : ''}</td>
+                    <td className="num">{r.km_per_litre ?? ''}</td>
                   </tr>
                 ))}
               </tbody>
-              <tfoot><tr className="font-semibold"><td colSpan={2} className="px-3 py-2.5">Total</td><td className="num px-3">{tot.fills}</td><td className="num px-3">{tot.litres.toFixed(2)}</td><td className="num px-3">{money(tot.amount)}</td><td colSpan={3} /></tr></tfoot>
+              <tfoot>
+                <tr className="font-semibold">
+                  <td colSpan={2} className="px-3 py-2.5">Total</td>
+                  <td className="num px-3">{ts.fills}</td>
+                  <td className="num px-3">{ts.litres.toFixed(2)}</td>
+                  <td className="num px-3">{money(ts.amount)}</td>
+                  <td />
+                  <td className="num px-3">{ts.km.toLocaleString()}</td>
+                  <td />
+                </tr>
+              </tfoot>
             </table>
           )
-        ) : logs.isLoading ? <Loading /> : !logs.data?.length ? <Empty>No top-ups this month</Empty> : (
+        ) : logs.isLoading ? <Loading /> : logs.error ? <div className="p-4"><ErrorBox error={logs.error} /></div> : !L.length ? <Empty>No top-ups this month</Empty> : tab === 'salesman' ? (
           <table className="table">
-            <thead><tr><th>No.</th><th>Date & time</th><th>Vehicle</th><th>By</th><th className="num">Litres</th><th className="num">Amount</th><th className="num">$/L</th><th className="num">Odometer</th><th>Station</th><th>Paid by</th><th className="no-print">Proof</th></tr></thead>
+            <thead><tr><th>Salesman</th><th className="num">Top-ups</th><th className="num">Litres</th><th className="num">Amount</th><th className="num">Km driven</th><th className="num">Avg km / L</th></tr></thead>
             <tbody>
-              {logs.data.map((l) => (
+              {bySalesman.map((r) => (
+                <tr key={r.name}>
+                  <td className="font-medium">{r.name}</td>
+                  <td className="num">{r.fills}</td>
+                  <td className="num">{r.litres.toFixed(2)}</td>
+                  <td className="num">{money(r.amount)}</td>
+                  <td className="num font-semibold">{r.km.toLocaleString()}</td>
+                  <td className="num">{r.kmLitres ? (r.km / r.kmLitres).toFixed(2) : ''}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="font-semibold">
+                <td className="px-3 py-2.5">Total</td>
+                <td className="num px-3">{tl.fills}</td>
+                <td className="num px-3">{tl.litres.toFixed(2)}</td>
+                <td className="num px-3">{money(tl.amount)}</td>
+                <td className="num px-3">{tl.km.toLocaleString()}</td>
+                <td />
+              </tr>
+            </tfoot>
+          </table>
+        ) : (
+          <table className="table">
+            <thead>
+              <tr>
+                <th>No.</th><th>Date &amp; time</th><th>Vehicle</th><th>Salesman</th><th className="num">Litres</th><th className="num">Amount</th>
+                <th className="num">Odometer</th><th>Previous top-up</th><th className="num">Prev. odometer</th><th className="num">Km driven</th>
+                <th className="num">Days</th><th className="num">Km / L</th><th>Station</th><th className="no-print">Proof</th>
+              </tr>
+            </thead>
+            <tbody>
+              {L.map((l) => (
                 <tr key={l.id}>
-                  <td className="font-medium">{l.log_no}</td><td className="whitespace-nowrap">{dateTimeFmt(l.filled_at)}</td><td>{l.vehicle?.code}</td><td>{l.user?.full_name}</td>
-                  <td className="num">{Number(l.litres).toFixed(2)}</td><td className="num">{Number(l.amount) > 0 ? money(l.amount) : "—"}</td><td className="num">{Number(l.amount) > 0 ? (Number(l.amount) / Number(l.litres)).toFixed(3) : ""}</td>
-                  <td className="num">{l.odometer ? Number(l.odometer).toLocaleString() : ''}</td><td>{l.station}</td>
-                  <td>{String(l.paid_by).replace('_', ' ').toLowerCase()}{l.claim_id ? ' (claimed)' : ''}</td>
+                  <td className="font-medium">{l.log_no}</td>
+                  <td className="whitespace-nowrap">{dateTimeFmt(l.filled_at)}</td>
+                  <td>{l.vehicle}</td>
+                  <td>{l.driver}</td>
+                  <td className="num">{Number(l.litres).toFixed(2)}</td>
+                  <td className="num">{Number(l.amount) > 0 ? money(l.amount) : '—'}</td>
+                  <td className="num">{l.odometer ? Number(l.odometer).toLocaleString() : '—'}</td>
+                  <td className="whitespace-nowrap">{l.prev_filled_at ? dateFmt(l.prev_filled_at) : 'first'}</td>
+                  <td className="num">{l.prev_odometer ? Number(l.prev_odometer).toLocaleString() : ''}</td>
+                  <td className={`num font-semibold ${l.km ? 'text-ink-900' : 'text-ink-300'}`}>{l.km ? Number(l.km).toLocaleString() : l.odometer ? '' : 'no reading'}</td>
+                  <td className="num">{days(l.days)}</td>
+                  <td className="num">{l.km_per_litre ?? ''}</td>
+                  <td>{l.station}</td>
                   <td className="no-print">{l.receipt_path && <button className="btn-ghost btn-sm" onClick={() => setReceipt(l)}><Eye size={14} /> View</button>}</td>
                 </tr>
               ))}
             </tbody>
+            <tfoot>
+              <tr className="font-semibold">
+                <td colSpan={4} className="px-3 py-2.5">Total ({L.length} top-ups)</td>
+                <td className="num px-3">{tl.litres.toFixed(2)}</td>
+                <td className="num px-3">{money(tl.amount)}</td>
+                <td colSpan={3} />
+                <td className="num px-3">{tl.km.toLocaleString()}</td>
+                <td colSpan={3} />
+                <td className="no-print" />
+              </tr>
+            </tfoot>
           </table>
         )}
       </div>
-      <ReceiptModal path={receipt?.receipt_path ?? null} title={`${receipt?.log_no ?? ''} · ${receipt?.vehicle?.code ?? ''} · ${receipt ? Number(receipt.litres).toFixed(2) : ''} L`} onClose={() => setReceipt(null)} />
+      <p className="no-print mt-3 text-xs text-ink-400">
+        Km driven = this odometer − the previous top-up of the same vehicle that has an odometer reading. Km / L = km driven ÷ litres filled this time.
+      </p>
+      <ReceiptModal
+        path={receipt?.receipt_path ?? null}
+        title={`${receipt?.log_no ?? ''} · ${receipt?.vehicle ?? ''} · ${receipt ? Number(receipt.litres).toFixed(2) : ''} L`}
+        onClose={() => setReceipt(null)}
+      />
     </div>
   );
 }

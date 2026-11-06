@@ -125,7 +125,6 @@ export const MENU: Group[] = [
       { to: '/vouchers/RECEIPT', label: 'Receipt Voucher' },
       { to: '/vouchers/EXPENSE', label: 'Expense Voucher' },
       { to: '/claims', label: 'Salesman Expense Claims' },
-      { to: '/reports/fuel', label: 'Diesel / Fuel Report' },
     ],
   },
   {
@@ -155,6 +154,7 @@ export const MENU: Group[] = [
       { to: '/reports/customer-outstanding', label: 'Customer Outstanding' },
       { to: '/reports/sales', label: 'Sales Report' },
       { to: '/reports/receipts', label: 'Receipt Report' },
+      { to: '/reports/fuel', label: 'Diesel / Fuel Report' },
       { to: '/products/stock', label: 'Product Stock Report' },
       { to: '/statement', label: 'Customer Statement' },
       { to: '/reports/profit', label: 'Profit Analysis' },
